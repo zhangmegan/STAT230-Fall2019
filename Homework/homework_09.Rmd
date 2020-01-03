@@ -1,0 +1,756 @@
+---
+title: "Homework 9"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+
+
+$\\$
+
+
+
+
+
+The purpose of this homework is to learn more about multiple regression models and data wrangling. Please fill in the appropriate code and write answers to all questions in the answer sections, then submit a compiled pdf with your answers through gradescope by 11:59pm on Sunday November 17th. 
+
+As always, if you need help with any of the homework assignments, please attend the TA office hours which are listed on Canvas and/or ask questions on [Piazza](piazza.com/yale/fall2019/sds230sds530fes757plsc530/home). Also, if you have completed the homework, please help others out by answering questions on Piazza.
+
+
+
+
+
+<!-- The R chunk below sets some parameters that will be used in the rest of the document. Please ignore it and do not modify it. -->
+```{r message=FALSE, warning=FALSE, tidy=TRUE, echo = FALSE}
+library(knitr)
+library(latex2exp)
+options(scipen=999)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+set.seed(123)  # set the random number generator to always give the same random numbers
+    
+```
+
+
+
+
+<!-- 
+If you are using R Studio that is installed on your own computer, run the code in the 
+R chunk below once. This will install some packages and download data needed for these 
+exercises. Note that you should also use a recent version of R since the homework might not run on older versions. 
+If you are using the R Studio cloud workpace for the homework, then the packages
+and data should already be available to you so you do not need to run the code below. 
+-->
+
+
+```{r message=FALSE, warning = FALSE, echo = FALSE, eval = FALSE}
+# if running the code on your personal computer, uncomment the lines and run once to get the data needed for class
+# download.file('https://raw.githubusercontent.com/emeyers/SDS230_F19/master/class_data/IPED_salaries_2016.rda', 'IPED_salaries_2016.rda')
+# install.packages('dplyr')
+# install.packages('car')
+```
+
+
+
+
+
+
+
+```{r setup, include=FALSE}
+# install.packages("latex2exp")
+library(latex2exp)
+library(dplyr)
+options(scipen=999)
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 1: Polynomial regression
+
+
+
+In the first set of exercises you will get practice running polynomial regression using the IPEDS faculty salary data.
+
+
+
+$\\$
+
+
+
+
+**Part 1.1 (2 points)**: To start, use dplyr to create a data frame called `IPED_2` that only includes schools that have endowments greater that 0 dollars. Also, add a variable to this data frame called `log_endowment` which is the log10 of each school's endowment. 
+
+
+```{r}
+load('IPED_salaries_2016.rda')
+IPED_2 <- IPED_salaries %>% filter(endowment > 0) %>% mutate(log_endowment = log10(endowment))
+                
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+**Part 1.2 (5 points)**: Fitting polynomial models 
+
+Now use polynomial regression to build models that predict total faculty salaires (salary_tot) from log_endowment. Do the polynomial fit for models up to degree 5, and for every model be sure to include the lower order terms as well; i.e., the model of degree 3 should be $\hat{y} = \hat{\beta_0} + \hat{\beta_1} x + \hat{\beta_2} x^2 + \hat{\beta_3} x^3$. Save all these models in a list called `poly_models`. Then use the summary() function to print the model of degree 5. Report which coefficients appear to be statistically significant from the degree 5 model. 
+
+
+
+```{r}
+poly_models <- list()
+for (i in 1:5){
+  poly_models[[i]] <- lm(salary_tot ~ poly(log_endowment, degree = i), data = IPED_2)
+}
+summary(poly_models[[5]])
+```
+
+
+**Answer:** 
+
+All of the degrees seem to be statistically significant except degree 5, which has a p-value of 0.058584. 
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+**Part 1.3 (7 points)**: Plotting polynomial models 
+
+Now visualize these fits of these different polynomial models (i.e., the $\hat{y}$ lines) by creating a scatter plot of the faculty salaries as a function of $log_{10}(endowment)$. Then run a for loop to plot a line for each model fit by:
+
+1) predicting the salaries from a model of the current degree
+
+2) plotting the predicted values as a function of the log_10 endowment in a distinct color (creating a vector with color names outside of the for loop will be helpful).
+
+Try to add a legend to the plot showing what the different colored lines correspond to, and report below which model seems to be the best fit. 
+
+
+
+```{r}
+# create a data frame for making predictions and a vector of colors
+predict_df <- data.frame(log_endowment = seq(0, 13, by = .1))
+the_cols <- c("red", "orange", "green", "blue", "purple")
+
+# plot the original data
+plot(IPED_2$log_endowment, IPED_2$salary_tot, xlab = "Log10(Endowment)",
+     ylab = "Total Salary", main = "Faculty Salary vs. Log10(Endowment)")
+
+# plot each of the model fits
+for(i in 1:5){
+
+  y_vals_predicted <- predict(poly_models[[i]], newdata = predict_df)
+  points(predict_df$log_endowment, y_vals_predicted, 
+     type = "l", col = the_cols[i])
+}
+
+#Added a legend
+legend(2.5, 230000, legend=c("First", "Second", "Third", 
+                       "Fourth", "Fifth"),
+       col=c("red", "orange", "green", "blue", "purple"), 
+       title = "Degree of Polynomial", lty=1:2, cex=0.8)
+
+```
+
+
+**Answer**  
+From the plot above, it seems that the fifth degree polynomial is still the best fit. 
+
+
+
+
+$\\$
+
+
+
+
+
+
+**Part 1.4 (5 points)**: Extracting R^2 and adjusted R^2 statistics
+
+Now extract the $R^2$ and adjusted $R_{adj}^2$ statistics. Which model has the largest the $R^2$ and the largest adjusted $R_{adj}^2$ statistics? Is this what you would expect. 
+
+
+
+```{r}
+all_r_squared <- c()
+all_r_adj <- c()
+for (i in 1:5){
+  all_r_squared[i] <- summary(poly_models[[i]])$r.squared
+  all_r_adj[i] <- summary(poly_models[[i]])$adj.r.squared
+  
+}
+all_r_squared
+all_r_adj
+```
+
+
+**Answer:**  
+The fifth degree polynomial has both the largest $R^2$ and $R_{adj}^2$ statistics. I expected the $R^2$ to be the largest, but I thought the addition of another degree would decrease the adjusted value. 
+
+
+
+
+
+$\\$
+
+
+
+
+
+**Part 1.5 (3 points)**: Do these models seem reasonable? 
+
+
+Describe overall whether you feel fitting polynomial models here seems like a reasonable thing to do; i.e., pro and cons of using a polynomial model here. There is not necessarily a right answer, just express your thoughts. 
+
+
+
+**Answer**  
+I think fitting a polynomial here does make sense because in reality, all salaries will be within a certain range (above 0 and below some number). This means we shouldn't just use a linear model to predict but should find a model which will account for the flattening of values near the ends of regression. However, there is a disadvantage in that using a polynomial will force the regression into some shape which may not necessarily reflect the nature of salary vs. endowment. 
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 2: Exploring categorical predictors and interactions
+
+
+Let's now examine how much faculty salaries increase as a function of log endowment size taking into account the rank that different professors have. 
+
+
+
+**Part 2.1 (2 points)**: Wrangling the data
+
+Start this analysis by creating a data set called `IPED_3` which is modified `IPED_2` in the following way:
+
+1) Only include data from institutions with a CARNEGIE classification of 15 or 31  (these correspond to R1 institutions and liberal arts colleges).
+
+2) Only use the faculty ranks of Lecturer, Assistant, Associate, and Full professors
+
+
+If you do this right you should `IPED_3` should have 808 rows.
+
+
+```{r}
+IPED_3 <- IPED_2 %>% filter(CARNEGIE %in% c(15,31),
+         rank_name %in% c("Lecturer", "Assistant", "Associate", "Full"))
+dim(IPED_3)
+```
+
+
+
+
+$\\$
+
+
+
+
+**Part 2.2 (3 points)**: Visualizing the data
+
+
+Now create a scatter plot of the data showing the total salary that faculty get paid (salary_tot) as a function of the log endowment size, where each faculty rank is in a different color. In particular, use the following color scheme:
+
+a) Assistant professors are in black
+b) Associate professors are in red
+c) Full professors are in blue
+d) Lecturers are in green
+
+
+```{r}
+plot(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Assistant"), 
+     ylim = c(0, 250000), ylab = "Salary", xlab = "Log10(Endowment)", 
+     main = "Salary vs. Log10(Endowment) for all Professors")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Associate"), col = "red")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Full"), col = "blue")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Lecturer"), col = "green")
+legend(5, 230000, legend=c("Full", "Associate", "Assistant", 
+                       "Lecturer"),
+       col=c("blue", "red", "black", "green"), 
+       title = "Rank of Professor", lty=1:2, cex=0.8)
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+**Part 2.3 (7 points)**: Fitting a linear model to the data
+
+
+Now fit a linear regression model for total salary as a function of log endowment size, but use a separate y-intercept for each of the 4 faculty ranks (and use the same slope for all ranks). 
+
+Use the summary() function to extract information about the model, and then answer the following questions about the model:
+
+1) How much do faculty salaries increase for each order of magnitude increase in endowment size? 
+
+2) What is the reference faculty rank that the other ranks are being compared to? 
+
+3) What is the difference in faculty salaries for each of the other ranks relative to the reference rank? 
+
+4) Do there appear to be statistically significant differences between the y-intercept of reference rank and each of the other ranks? 
+
+5) How much of the total sum of squares of faculty salary is log10 endowment and faculty rank accounting for in this model based on the $R^2$ and adjusted $R^2$ statistics? 
+
+
+```{r}
+(intercept_fit <- lm(salary_tot ~ log_endowment + rank_name, data = IPED_3))
+summary(intercept_fit)
+(the_coefs_salary <- coef(intercept_fit))
+```
+
+**Answers**
+
+1) The faculty salary increases $\$25796.82$ for each order of magnitude increase in endowment size.
+
+2) The reference faculty is the Full Professor.
+
+3) Associate Professors are paid $\$27923.77$ less, Assistant Professors are paid $\$40933.90$ less, and Lecturers are paid $\$57334.39$ less. 
+
+
+4) The p-values are all very close to 0 (about $2*10^{-16}$), so it appears there is a statistically significant difference between the y-intercept of each rank versus the Full Professor. 
+
+
+5) $R^2 = 0.7053$ and adjusted $R^2 = 0.7038$. So the model accounts for $70.38\%$ of the sum of squares (using the adjusted R-squared).
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+**Part 2.4 (5 points)**:  Visualizing the model fit
+
+Now recreate the scatter plot you created in part 2.2 using the same colors. Now, however, also add on the regression lines with different y-intercepts that you fit in part 2.4 (using the appropriate colors to match the colors of the points). 
+
+Are there any situations in particular where using the same slope for each rank seem like it is doing a poor job fitting the data? 
+
+
+
+
+```{r}
+plot(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Assistant"), 
+     ylim = c(0, 250000), ylab = "Salary", xlab = "Log10(Endowment)", 
+     main = "Salary vs. Log10(Endowment) for all Professors")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Associate"), col = "red")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Full"), col = "blue")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Lecturer"), col = "green")
+
+abline(the_coefs_salary[1], the_coefs_salary[2], col = "blue")
+abline(the_coefs_salary[1] + the_coefs_salary[3], the_coefs_salary[2], col = "red")
+abline(the_coefs_salary[1] + the_coefs_salary[4], the_coefs_salary[2], col = "black")
+abline(the_coefs_salary[1] + the_coefs_salary[5], the_coefs_salary[2], col = "green")
+legend(5, 230000, legend=c("Full", "Associate", "Assistant", 
+                       "Lecturer"),
+       col=c("blue", "red", "black", "green"), 
+       title = "Rank of Professor", lty=1:2, cex=0.8)
+```
+
+
+**Answer** 
+
+It seems that using the same slope for a linear regression for Full Professors is poorly fitting the data. This is probably because Full Professors make much higher salaries than other professors and this is likely to increase much more with the amount of money a school has. 
+
+
+
+$\\$
+
+
+
+
+**Part 2.5 (7 points)**: Fitting a slightly more complex model
+
+
+Now fit a linear regression model for total salary as a function of log endowment size, but use separate y-intercepts **and slopes** for each of the 4 faculty ranks. Then answer the following questions: 
+
+1) How much of the total sum of squares of faculty salary is this model capturing? 
+
+2) Based on this model, if an Associate professor and Full professor both worked at a University that had an endowment of a million dollars, who would get paid more and by how much?  Does this seem realistic?   
+
+
+
+
+```{r}
+(interaction_fit <- lm(salary_tot ~ log_endowment*rank_name, data = IPED_3))
+summary(interaction_fit)
+(the_coefs_interaction <- coef(interaction_fit))
+
+predict(interaction_fit, (data.frame(log_endowment = 6, rank_name = "Full")))
+predict(interaction_fit, (data.frame(log_endowment = 6, rank_name = "Associate")))
+```
+
+
+
+$\\$
+
+
+
+**Answers**
+
+1) The adjusted R-squared value is 0.7776, so the model is capturing $77.76\%$ of the sum of squares. 
+
+
+
+
+2) The Full professor would get paid $\$13343.68$ and the Associate Professor would get paid $\$28683$. The Associate professor is getting paid $\$15339.43$ more. This seems very unrealistic because a full professor should be getting paid more; also, both of these salaries are far below what any professor in the U.S. should be making. 
+
+
+
+
+
+$\\$
+
+
+
+
+
+**Part 2.6 (6 points)**: Visualizing the model 
+
+Now again recreate the scatter plot you created in part 2.2 using the same colors. Now, however, also add on the regression line with different y-intercepts and slopes based on the model you fit in part 2.5 (again use the appropriate colors).
+
+Does there seem to be an ordered relationship between ranks and how faculty salary increases with endowment? 
+
+
+```{r}
+plot(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Assistant"), 
+     ylim = c(0, 250000), ylab = "Salary", xlab = "Log10(Endowment)", 
+     main = "Salary vs. Log10(Endowment) for all Professors")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Associate"), col = "red")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Full"), col = "blue")
+points(salary_tot ~ log_endowment, data = filter(IPED_3, rank_name == "Lecturer"), col = "green")
+
+the_coefs_interaction
+abline(the_coefs_interaction[1], the_coefs_interaction[2], col = "blue")
+abline(the_coefs_interaction[1] + the_coefs_interaction[3], 
+       the_coefs_interaction[2] + the_coefs_interaction[6], col = "red")
+abline(the_coefs_interaction[1] + the_coefs_interaction[4], 
+       the_coefs_interaction[2] + the_coefs_interaction[7], col = "black")
+abline(the_coefs_interaction[1] + the_coefs_interaction[5], 
+       the_coefs_interaction[2] + the_coefs_interaction[8], col = "green")
+legend(5, 230000, legend=c("Full", "Associate", "Assistant", 
+                       "Lecturer"),
+       col=c("blue", "red", "black", "green"), 
+       title = "Rank of Professor", lty=1:2, cex=0.8)
+```
+
+
+**Answer** 
+
+There does seem to be an ordered relationship between the rank and the increase in salary. When the endowment is over about 10 million dollars, the Full Professor salary increases the fastest, followed by Associate, Assistant, and then Lecturer. This follows the ranking of actual Professors - the higher the rank, the faster salary will increase. 
+
+
+
+$\\$
+
+
+
+
+
+**Part 2.7 (3 points)**: Comparing models
+
+
+The model you fit in Part 2.5 is nested within the model you fit in Part 2.3. Use an ANOVA to compare these models. Does adding the additional slopes for each rank seem to improve the model fit? 
+
+
+
+```{r}
+anova(intercept_fit, interaction_fit)
+```
+
+
+**Answer** 
+Since the Residual Sum of Squares decreased with the second model, it seems that addition of additional slopes for each rank did improve the model fit. We also see that the p-value for the F-statistic is very small, showing there is a difference in the models' ability to explain the variance. 
+
+
+
+
+$\\$
+
+
+
+
+
+
+**Part 2.8 (5 points)**: Improving the model
+
+Can you think of any other ways to improve the model fit? Do an additional analysis where you adjust something about the model or the data to create a better model. Describe below what you did below and why.  
+
+
+
+```{r}
+poly_list <- c()
+for (i in 1:5){
+poly_list[[i]] <- lm(salary_tot ~ poly(log_endowment, degree = i)*rank_name, data = IPED_3)
+}
+
+(poly_fit_5 <- poly_list[[5]])
+(summary(poly_fit_5))$adj.r.squared
+
+```
+
+
+
+**Answer** 
+
+We can use a polynomial regression to try and improve the model fit. We can see from the scatterplot above that there is some curvature to the data, so I thought fitting a polynomial regression might help to address this problem. When I fitted a polynomial regression with degree 5, the R-squared value was 0.8547, so it seems to fit the data better than the linear. 
+
+
+
+
+$\\$
+
+
+
+
+
+
+**Part 2.9 (5 points)**: Further explorations
+
+
+Do an additional exploration or model of the data and report something else interesting. 
+
+
+
+```{r}
+IPED_4 <- IPED_3 %>% mutate(prop_women = num_faculty_women/num_faculty_tot, 
+                            prop_men = num_faculty_men/num_faculty_tot)
+plot(salary_tot ~ prop_women, data = filter(IPED_4),
+     ylab = "Total Average Salary", xlab = "Proportion of Female Faculty",
+     main = "Salary vs. Proportion of Female Faculty")
+legend(0.8, 230000, legend=c("First", "Second", "Third", 
+                       "Fourth", "Fifth"),
+       col=c("red", "orange", "green", "blue", "purple"), 
+       title = "Degree of Polynomial", lty=1:2, cex=0.8)
+  
+poly_models_4 <- list()
+for (i in 1:5){
+  poly_models_4[[i]] <- lm(salary_tot ~ poly(prop_women, degree = i), data = IPED_4)
+}
+
+predict_df_1 <- data.frame(prop_women = seq(0, 13, by = .1))
+for(i in 1:5){
+
+  y_vals_predicted <- predict(poly_models_4[[i]], newdata = predict_df_1)
+  points(predict_df_1$prop_women, y_vals_predicted, 
+     type = "l", col = the_cols[i])
+}
+
+r_squared <- c()
+r_adj <- c()
+for (i in 1:5){
+  r_squared[i] <- summary(poly_models_4[[i]])$r.squared
+  r_adj[i] <- summary(poly_models_4[[i]])$adj.r.squared
+  
+}
+
+r_squared
+r_adj
+
+summary(poly_models_4[[1]])
+
+```
+
+
+**Answer** 
+I compared the proportion of female faculty members at each university (using IPED_3 which already filtered out the four levels of professors, and the types of colleges). Then I fitted polynomial regressions up to degree five. For the linear regression I found a negative slope of -364495. This seemed to be statistically significant as the p-value was very close to 0, showing that there is some negative relationship between the proportion of female faculty memebers and the average salary at the school. However, none of the polynomial models seemed to fit the data well as all R-squared values  were less than 0.3. Looking at the data points I believe there is some correlation though, so I think this may be worth looking more into. Perhaps there really is a wage gap, or perhaps the colleges with more female faculty are all smaller colleges with less money to pay professors. 
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 3: More data wrangling
+
+
+
+Thanksgiving is coming up which means a lot of Americans will be traveling. In particular, since New Haven is relatively close to New York City, so it is likely that a number of people will be flying out of airports in the New York City area for the holiday. A major frustration to flying is when a flight is delayed. Let's use dplyr to do some quick explorations of the data to some ways to potentially avoid flight delays. 
+
+
+Let's start by loading data for flights leaving New York City in 2013. Use *? flights* for more information about the data set. You don't need to modify anything on the code below.
+ 
+```{r message=FALSE, warning=FALSE, tidy=TRUE}
+#install.packages("nycflights13")
+# get the flight delays data and load dplyr
+require("nycflights13")
+data(flights)
+data(airlines)   # the names of the airline carriers
+```
+
+
+
+
+
+   
+$\\$   
+   
+    
+
+    
+
+
+
+**Part 3.1 (5 points):**  Flights that start off with a delay might end up making up some time during the course of the flight. Test whether this is true on average. Hint: only use flights that have positive departure delay. 
+
+ 
+
+```{r message=FALSE, warning=FALSE, tidy=TRUE}
+delayed_flights <- flights %>% filter(dep_delay > 0)
+
+mean(delayed_flights$dep_delay - delayed_flights$arr_delay, na.rm = TRUE)
+median(delayed_flights$dep_delay - delayed_flights$arr_delay, na.rm = TRUE)
+
+dep_delayed <- delayed_flights$dep_delay
+arr_delayed <- delayed_flights$arr_delay
+
+t.test(dep_delayed, arr_delayed)
+```
+
+**Answers**:
+
+The mean difference between departure delays and arrival delays is 4.607, meaning on average, a delayed flight makes up 4.607 minutes during the course of a flight. The median of this value is 7. The t-test shows there is a statistically significant difference between the means so it does seem to be true on average. 
+
+
+
+
+
+
+$\\$    
+    
+
+    
+
+    
+    
+  
+    
+**Part 3.2 (5 points):**  One way to avoid being delayed would be to avoid the worst airlines. Which airline had the longest arrival delays on average, and how long was this average delay?  Use the *airlines* data frame to figure out which airline each carrier code corresponds to. 
+
+
+
+```{r message=FALSE, warning=FALSE, tidy=TRUE}
+# get the average delay for each airline
+
+avg_arr_delay <- flights  %>%  group_by(carrier) %>% 
+   summarize(mean_arr_delay = mean(arr_delay, na.rm = TRUE)) 
+arrange(avg_arr_delay, desc(mean_arr_delay))[1,]
+
+carrier <- toString(avg_arr_delay[which.max(avg_arr_delay$mean_arr_delay),][1])
+(airlines[which(airlines$carrier == carrier),])[2]
+
+```
+
+**Answers**:  
+Frontier Airlines had the longest average delay of 21.92 minutes.
+   
+   
+   
+   
+$\\$   
+
+
+
+
+
+
+
+
+**Part 3.3 (5 points):**  Another way to avoid flight delays would be to avoid particularly bad times to fly. Which month of the year had the longest departure delays? Also report which hour of the day had the longest departure delays. Finally, report how many flights left at the hour of the day that had the longest delay and what the average deley was at that time. 
+
+
+```{r message=FALSE, warning=FALSE, tidy=TRUE}
+(month_delay <- flights  %>%  group_by(month) %>% 
+   summarize(mean_arr_delay = mean(arr_delay, na.rm = TRUE)) 
+ %>% arrange(desc(mean_arr_delay)))[1,]
+
+(hour_delay <- flights  %>%  group_by(hour) %>% 
+   summarize(mean_arr_delay = mean(arr_delay, na.rm = TRUE)) 
+  %>% arrange(desc(mean_arr_delay)))[1,]
+
+dim(filter(flights, hour == 21))
+
+```
+
+**Answers**: 
+
+July had the longest departure delay of 16.71 minutes. 
+
+The hour with the longest departure delays was 21:00 (9pm) with a time of 18.39 minutes. There were 10933 flights that left at this time. 
+
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Reflection (3 points)
+
+
+Please reflect on how the homework went by going to Canvas, going to the Quizzes link, and clicking on [Reflection on homework 9](https://yale.instructure.com/courses/51220/quizzes/20273)
+
+
+
