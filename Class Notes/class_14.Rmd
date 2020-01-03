@@ -1,0 +1,301 @@
+---
+title: "Class 14 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+Notes:
+
+testing too many pairs ---> too many type I errors (false positives) (problem of multiplicity)
+
+bonferroni correction --> unlikely to make type I errors, likely to make type II errors
+
+tukey's honest significantly different test --> controls for family-wise error rate (all types of errors)
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Kruskal–Wallis test and pairwise comparisons
+ * Simple linear regression
+
+
+
+$\\$
+
+
+
+
+
+**Part 1.0 - step 0** Create a side-by-side boxplot comparing the critics' scores of the movie for each MPAA rating level. 
+
+```{r visualize_movies}
+
+
+#download.file('http://www2.stat.duke.edu/~mc301/data/movies.Rdata', 'movies.Rdata')
+
+load('movies.Rdata')
+
+# only keep movies rated "G", "PG", "PG-13", "R"
+movies3 <- movies[movies$mpaa_rating %in% c("G", "PG", "PG-13", "R"), ]
+movies3$mpaa_rating <- droplevels(movies3$mpaa_rating)
+
+
+
+boxplot(critics_score ~ mpaa_rating, data = movies3, 
+        xlab = "MPAA rating", 
+        ylab = "Critics' score",
+        main = "Critics' scores for each MPAA rating level")
+```
+
+**not normally distributed based on last time's qqplot**
+
+
+$\\$
+
+
+**Part 1.1** Kruskal–Wallis test to see if any of our groups stochastically dominate another group. 
+
+```{r}
+
+
+# Kruskal–Wallis test using the kruskal.test() function
+kruskal.test(critics_score ~ mpaa_rating, data = movies3)
+
+# compare to the ANOVA 
+anova_fit <- aov(critics_score ~ mpaa_rating, data = movies3)
+summary(anova_fit)
+
+
+```
+
+
+
+p-value is small, so not all groups are stochastically the same, so one group must stochastically dominate the others
+
+p-value for anova is similar and we also reject
+
+
+$\\$
+
+
+
+
+**Part 1.2** Pairwise comparisons in R
+
+
+```{r}
+
+
+# test with no multiple comparisons adjustment (not good)
+(no_correct <- pairwise.t.test(movies3$critics_score, movies3$mpaa_rating, p.adj = "none"))
+
+(0.5/6) # new alpha threshold
+
+# with the Bonferroni
+pairwise.t.test(movies3$critics_score, movies3$mpaa_rating, p.adj = "bonferroni")
+
+# Note, the Bonferroni p-values are 6 times larger than the p-values with no adjustment
+(no_correct$p.value * 6)
+
+# Tukey's HSD test using the TukeyHSD(anova_fit) function - very similar to the Bonferroni correction here
+TukeyHSD(anova_fit)
+
+
+```
+
+
+
+
+
+      G      PG     PG-13 
+PG    1.0000 -      -     
+PG-13 0.0375 0.0407 -     
+R     1.0000 1.0000 0.0019
+
+P value adjustment method: bonferroni 
+
+
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+## Part 2: Simple linear regression in R
+
+
+
+Smoking is associated with cancer? Let's do a regression analysis to build a linear model that can predict the cancer rate based on the rate that people smoke using the smoking rate from 50 states. 
+
+
+
+Let's start by plotting the data, fitting our linear model, and visualizing the fit
+
+
+```{r}
+
+# source('class_functions.R')
+#download_class_data("smoking_cancer.rda")
+
+
+load("smoking_cancer.rda")
+
+
+# create a scatter plot and calculate the correlation (note: this is plot(x, y))
+plot(smoking$CIG, smoking$LUNG)
+ 
+
+# fit a regression model  (note: this is y as as function of x)
+(lm_fit <- lm(LUNG ~ CIG, data = smoking))
+
+
+# add the regression line to the plot
+abline(lm_fit , col = "red")
+
+
+# do any points appear to be outliers? 
+
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+Now let's examine:
+
+1) The coeffients found by our model
+2) The predicted values y-hat values for each x value in our data set
+3) The residuals
+
+
+
+```{r}
+
+
+# examine the a and b coefficients
+coef(lm_fit)
+
+
+# could you write out this linear regression equation? 
+#yhat = 6.47 b_0 + 0.53 b_1
+
+
+# let's look at all the fitted values y-hat for each x in our data set
+lm_fit$fitted.values # all of the predictions
+
+
+# let's look at the residuals (y - y-hat)
+sum((smoking$LUNG  - lm_fit$fitted.values)^2)
+
+# do these residual match what we would expect based on y - fitted.values? 
+lm_fit$residuals
+ #if we subtract the values we find that each value is very close to 0 (but not 0 due to lack of precision)
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+We can also make predictions $\hat{y}$ for new x-values
+
+
+
+
+
+```{r}
+
+# create a new data frame with values we want to predict
+
+new_smoking_data <- data.frame(CIG = c(15, 25, 35))
+
+# predicted y-hat values
+
+(predicted_vals <- predict(lm_fit, newdata= new_smoking_data))
+
+
+# replot data with these new points on it
+plot(smoking$CIG, smoking$LUNG)
+abline(lm_fit)
+# add the regression line to the plot
+points(new_smoking_data$CIG, predicted_vals, col = "red", pch = 19)
+
+
+
+
+
+
+```
+
+
+
+$\\$
+
+
+
+
+
+## After the break...
+
+* Inference for linear regression
+* Multiple regression 
+* Data Science!
+
+
+
+
+
+
+
+
+

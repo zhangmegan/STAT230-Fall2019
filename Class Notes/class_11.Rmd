@@ -1,0 +1,250 @@
+---
+title: "Class 11 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Correlation
+ * Permutation tests for correlation
+ * Theories of hypothesis tests
+ * Parametric hypothesis tests
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 1: of correlation
+
+
+Let's review correlation and how we could create a permutation test to see if there is a statistically significant correlation between two quantitative variables. 
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 2: Permutation tests for correlation
+
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 0: Plot the data
+
+
+```{r cereal_plot}
+
+
+# get the data
+# source('class_functions.R')
+# download_class_data("cereal.Rda")
+
+# load the data
+load("cereal.Rda")
+
+
+# create a scatter plot of carbs as a function of calories
+plot(cereal$Calories, cereal$Carbs)
+
+
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+##### Step 1: State the null and alternative hypotheses 
+
+
+$H_0: \rho = 0$
+$H_A: \rho > 0$ 
+
+
+$\alpha = $
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+##### Step 2: Calculate the observed statistic
+
+
+
+
+```{r sudoku_obs_stat}
+
+
+
+# calculate the correlation statistic
+(obs_stat <- cor(cereal$Calories, cereal$Carbs))
+  
+  
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+##### Step 3: Create the null distribution
+
+
+
+
+```{r sudoku_null_dist}
+
+
+# one null distribution statistic 
+cor(sample(cereal$Calories), cereal$Carbs)
+
+
+
+# create the full null distribution 
+
+
+
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+##### Step 4: Calculate a p-value
+
+
+```{r sudoku_p_value}
+
+
+
+# plot the null distribution again with a line at the observed statistic
+
+
+
+
+
+# calculate the p-value
+
+
+
+```
+
+
+$\\$
+
+
+
+
+
+
+
+##### Step 5: Make a decision
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Homework 5: Was the 1969 Vietnam Draft completely random? 
+
+
+
+
+
+$\\$
