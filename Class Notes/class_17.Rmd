@@ -1,0 +1,544 @@
+---
+title: "Class 17 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+#options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Data wrangling with dplyr
+ * Inference for simple linear regression
+ * Diagnostic plots
+
+
+
+
+$\\$
+
+
+
+
+## Part 1: Data wrangling with dplyr 
+
+
+We can use the package dplyr to wrangle data. dplyr is part of the 'tidyverse' which is a collection of packages that operate on data frames. 
+
+The main functions in dplyr we will use are:
+
+ * filter()
+ * select()
+ * mutate()
+ * arrange()
+ * group_by()
+ * summarize()
+ * sample_n()
+ 
+Today will will explore the filter(), select(), mutate() and sample_n() functions.  
+
+
+
+
+```{r load_dplyr}
+
+# install.packages('dplyr)
+
+library(dplyr)
+
+```
+
+
+
+## Part 1: Repeating loading and wrangling the data from last class
+
+
+
+To explore these dplyr functions, we will use data from the Integrated Postsecondary Education Data System (IPEDS) which has information about colleges and universities. I have created a subset of this data from 2016 that has information about college salaries, endowment sizes and other variables. Full datasets from several years are available in Microsoft Access format and [can be downloaded here](https://nces.ed.gov/ipeds/use-the-data/download-access-database).
+
+Below is code that loads the data. You can use the View() function from the console to look at the data. The glipse() function in dplyr is also useful for getting a sense of what is in a data frame. 
+
+
+
+```{r load_iped}
+
+# download the data
+# source('class_functions.R')
+# download_class_data("IPED_salaries_2016.rda")
+
+
+# load the data into R
+load('IPED_salaries_2016.rda')
+
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 1.2: Filtering and selecting to get only Assistant Professor data 
+
+
+To look at a more homogeneous data set, let's just look at the data for Assistant Professors. To get this subset of the data we can use dplyr's filter() function. We will filter for that and for rank_name of Assistant. We will also filter for colleges that have endowments greater than $0, and get only data where there is no missing information using the complete.cases() function.
+
+
+
+```{r filter_salaries}
+
+# filter for assistant professors from large research universities
+assistant_data <- filter(IPED_salaries, 
+                                 CARNEGIE == 15, 
+                               rank_name == "Assistant")
+
+
+# alternatively -> this might be better...
+assistant_data <- filter(IPED_salaries, 
+                                endowment > 0, 
+                                rank_name == "Assistant")
+
+
+# get only the cases that do not have missing data
+assistant_data <- assistant_data[complete.cases(assistant_data), ]
+
+
+
+# select the relevant variables
+assistant_smaller <- select(assistant_data, 
+                           school, salary_tot, endowment, enroll_total)
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+
+
+
+## Part 2: Inference for simple linear regression using parametric methods
+
+
+What could be driving the diffrence in faculty salaries across universities? Let's see use linear models to see if we can find variables that predict differences in the salaries professors make at different schools. 
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+#### Part 2.1: Visualizing relationships
+
+
+One potential factor that could drive differences in faculty salaries is the size of a schools endownment. Let's begin by visualizing the relationship between endowment size and faculty salaries by using a scatter plot. 
+
+
+
+
+```{r visualize_salaries}
+
+plot(assistant_smaller$endowment, assistant_smaller$salary_tot)
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 2.2: Transforming the explanatory varaibles
+
+
+
+Many schools have relatively small endowments compared to other schools and so the relationship does not look particularly linear. To create a better model that can predict salaries it might be useful to transform the predictor varaible endowment by taking the $log_{10}$ of this variable. This will tell us how faculty salaries change with the order of magnitude of a schools endowment. 
+
+One way we can create this transformed variable is to use the dplyr mutate() function. 
+
+
+```{r mutate_endowment}
+
+# use the mutate() function to create a variable that has the log10 of the endowment
+assistant_smaller <- assistant_smaller %>%
+  mutate(log_endowment = log10(endowment))
+
+
+# plot the relationship between salaries and the log10 of a schools endowment
+plot(assistant_smaller$log_endowment, assistant_smaller$salary_tot)
+
+
+
+# we can also see a list of schools with the smallest and largest endowments using dplyr's arrange() function
+tail(dplyr::arrange(assistant_smaller, endowment)) #last six
+#:: says where the function comes from
+
+
+head(arrange(assistant_smaller, endowment)) #first six
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+#### Part 2.3: Fitting a linear model
+
+
+Let's now fit a linear model to our data to predict faculty salaries from the log10 of the endowment. 
+
+
+
+```{r linear_fit}
+
+
+# fit a regression model  (note: this is y as as function of x)
+lm_fit<- lm(salary_tot ~ log_endowment, data = assistant_smaller)
+
+# plot the data and add the regression line to the plot
+plot(assistant_smaller$log_endowment, assistant_smaller$salary_tot)
+abline(lm_fit, col = "red")
+
+# look at the coefficients
+coef(lm_fit)
+
+
+```
+
+
+**Question:**  How do we interpret these coefficients? 
+
+$\hat{\beta}_1 = 12076.67$
+$\hat{\beta}_0 = -32400.60$
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.4: Assessing the statistical significance of the fit
+
+
+We can use R's bulit in summary() function to see if the regression coefficients are statistically significant.
+
+
+
+```{r}
+
+# look at the model using the summary() function
+#lm_fit$ can extract different components
+#SSE: sum(lm_fit$residuals^2)
+summary(lm_fit)
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 2.5: 
+
+
+We can also use an analysis of variance to assess the statistical significance.
+
+
+
+
+```{r}
+
+# use the anova() function to get an ANOVA table
+anova(lm_fit)
+
+
+```
+
+if null is true (beta1 = 0), then F value should be around 1
+
+
+**Question** What is the SSModel and SSError here? 
+
+
+**Answers**
+SSModel = 
+SSError = 
+
+
+
+You could also show that SSTotal = SSModel + SSError using data in the `assistant_smaller` data frame (for the SSTotal), and data in the `lm_fit` object (residuals and fitted.values). You will do this on homework 7!
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.6: t-distribution based confidence intervals
+
+ 
+
+We can create confidence intervals for $\beta_0$ and $\beta_1$ using a t-distribution via the confint() function. 
+
+
+
+```{r}
+
+
+# use the confint() to get a confidence interval for the beta's 
+confint(lm_fit)
+
+```
+
+
+
+Interpretation? 
+95% of these intervals contains the true parameter
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.7: Using the bootstrap to create confidence intervals
+
+
+We can also use resampling methods (i.e., the bootstrap) to get confidence intervals. 
+
+Rather than create confidence intervals here, let's instead use the bootstrap to plot several bootstrap regression lines which will give us a visualizaiton of a range of possible regression lines that could reflect the real underlying relationship. 
+
+
+```{r}
+
+
+# let's start by plotting the data
+plot(assistant_smaller$log_endowment, assistant_smaller$salary_tot)
+
+
+# get the number of cases
+n_cases <- (dim(assistant_smaller))[1]
+
+
+# use a loop to plot 100 regression lines that are consistent 
+for (i in 1:100){
+  
+  # get a bootstrap sample the same size as the original sample
+  boot_sample <- dplyr::sample_n(assistant_smaller, size = n_cases, replace = TRUE)
+  
+  # fit the regression model on the bootstrap sample and plot it
+  boot_fit <- lm(salary_tot ~ log_endowment, data = boot_sample)
+  abline(boot_fit, col = "red")
+  
+
+  #100 regression lines for the 100 samples
+}
+
+
+```
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 3: Regression diagnostics
+
+
+
+When making inferences about regression coefficients, there are a number of assumptions that need to be met to make these tests/confidence invervals valid. The assumptions for an ANOVA are: 
+
+1) **Normality**: residuals are normally distributed around the predicted value $\hat{y}$
+2) **Homoscedasticity**: constant variance over the whole range of x values
+3) **Linearity**: A line can describe the relationship between x and y
+4) **Independence**: each data point is independent from the other points
+
+
+To check whether these assumptions seem to be met by creating a set of diagnostic plots. 
+
+
+
+
+$\\$
+
+
+
+
+
+**Part 3.1:** To check whether the residuals are normally distributed we can use create a Q-Q plot. The `car` package has a nice function to create these plots called qqPlot() to create these plots that uses the residuals from model fit with the lm() function, i.e, the `lm_fit` object.
+
+
+```{r}
+
+#install.packages('car')
+library(car)
+
+# create a Q-Q plot of the residuals using the qqPlot() function
+car::qqPlot(lm_fit)
+
+# we can also create a histogram of the residuals
+
+hist(lm_fit$residuals)
+
+
+
+```
+
+
+**Question:** Do the residuals seem normal? 
+almost. sort of?
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+**Part 3.2:** To check for homoscedasticity and linearity, we can create a plot of the residuals as a function of the fitted values. 
+
+```{r}
+plot(lm_fit$fitted.values, lm_fit$residuals)
+
+```
+
+
+
+
+**Question** Does it appear that the data is homoscedastic and linear? 
+
+
+
+
+
+
+$\\$
+
+
+We can examine this further some more of R's built in functions and well as other functions from the `car` package and getting the studentized residuals using the `Mass` package. 
+
+
+
+```{r}
+
+par(mfrow = c(2, 2))
+plot(lm_fit)
+
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+**Part 3.3:** To check if the data points are independent requires knowledge of how the data was collected. Do you think the data is independent here? I.e., do you think that the salary of one school affacts the salaries at another school? 
+
+
+
+
+
+
+

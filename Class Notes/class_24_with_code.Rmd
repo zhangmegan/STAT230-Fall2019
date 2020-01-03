@@ -1,0 +1,568 @@
+---
+title: "Class 24 notes and code"
+output:
+  pdf_document: 
+   fig_width: 7
+   fig_height: 5
+  html_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+# install.packages("latex2exp")
+library(latex2exp)
+library(dplyr)
+library(ggplot2)
+#options(scipen=999)
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Overview: Multiple linear regression continued
+
+ * Bonus ggplot features
+ * Joining data frames
+ * Spatial mapping
+ * Reshaping data
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+## Part 1: Bonus features of ggplot
+
+
+Below are some extra packages that can extend the functionality of ggplot
+
+
+
+
+$\\$
+
+
+
+#### Part 1.0: Renaming factors
+
+
+Last class the question came up about renaming factors. There are several ways to do this including: 
+
+1) If you only have 2 factor levels you can use the ifelse() function
+2) You can use the recode() function in the dplyr package
+
+
+For more information see the this paper by [McNamara and Horton](https://peerj.com/preprints/3163/). For other useuful function related to factors see the [forcats package](https://forcats.tidyverse.org/)
+
+
+
+```{r}
+# mutating the names of a factor to be more meaningful using ifelse()
+mtcars %>%
+  mutate(Transmission = ifelse(am == 0, "standard", "automatic")) %>%
+  ggplot(aes(x = wt, y = mpg, col = Transmission)) +
+  geom_point()
+# mutating the names of a factor to be more meaningful using dplyr recode()
+mtcars %>%
+  mutate(Transmission = 
+           recode(am,
+                  "0" = "standard", 
+                  "1" = "automatic")) %>%
+  ggplot(aes(x = wt, y = mpg, col = Transmission)) +
+  geom_point()
+```
+
+
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.1: Additional geoms
+
+There are additional packages that add more geoms
+
+
+
+
+```{r}
+# # install.packages("emoGG")
+library(emoGG)
+ggplot(mtcars, aes(wt, mpg)) +
+   	geom_emoji(emoji="1f697")
+```
+
+
+
+
+$\\$
+
+
+
+#### Part 1.2: Adding animation
+
+
+We can create animated images (gifs) using the gganimate package. To learn how to use this package see the [gganimate github website](https://github.com/thomasp85/gganimate)
+
+
+
+```{r}
+# # install.packages("gganimate")
+# library(gganimate)
+# example from:  https://github.com/thomasp85/gganimate
+# run this from the console
+ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop, colour = country)) +
+   geom_point(alpha = 0.7, show.legend = FALSE) +
+  scale_colour_manual(values = country_colors) +
+   scale_size(range = c(2, 12)) +
+   scale_x_log10() +
+   facet_wrap(~continent) +
+   # Here comes the gganimate specific bits
+   labs(title = 'Year: {frame_time}', x = 'GDP per capita', y = 'life expectancy') +
+   transition_time(year) +
+   ease_aes('linear')
+```
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.2: Interactivity
+
+
+We can make our plots interactive using the plotly() library. To learn more about plotly [vist their website](https://plot.ly/)
+
+
+
+
+```{r}
+# # install.packages("plotly")
+# library(plotly)
+# also better run from the console or need to knit to html
+# p <- ggplot(gapminder, aes(x = gdpPercap, y = lifeExp, 
+# 	size = pop, col = continent, frame = year)) +  
+# 	geom_point() +  
+# 	scale_x_log10()
+# 
+# ggplotly(p)
+```
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 2: Joining data frames
+
+
+Often data of intertest is spread across multiple data frames that need to be joined together into a single data frame for further analyses. We will explore how to do this using dplyr. 
+
+
+Let's look at a very simple data set to explore joining data frames. 
+
+
+```{r}
+#download_class_data('x_and_y.Rda')
+load('x_and_y.Rda')
+x
+y
+```
+
+
+$\\$
+
+
+
+#### Part 2.1: Left join
+
+Left joins keep all rows in the left table.  
+
+Data from right table added when there is the key matches, otherwise NA as added. 
+
+
+
+```{r}
+left_join(x, y, by = c("left_key" = "right_key"))
+```
+
+
+
+$\\$
+
+
+
+#### Part 2.2: Right join
+
+
+Right joins keep all rows in the right table.  
+
+Data from left table added when there is the key matches, otherwise NA as added. 
+
+
+
+
+```{r}
+right_join(x, y, by = c("left_key" = "right_key"))
+```
+
+
+
+$\\$
+
+
+
+#### Part 2.3: Inner join
+
+
+Inner joins only keep rows in which there are matches between the keys in both tables
+
+
+
+```{r}
+inner_join(x, y, by = c("left_key" = "right_key"))
+```
+
+
+
+$\\$
+
+
+
+#### Part 2.4: Full join
+
+Full joins keep all rows in both table.  
+NAs are added where there are no matches
+
+
+
+```{r}
+full_join(x, y, by = c("left_key" = "right_key"))
+```
+
+
+
+$\\$
+
+
+
+
+#### Part 2.5a: Duplicate keys
+
+
+Duplicate keys are useful if there is a one-to-many relationship (duplicates are usually in the left table). 
+
+Let's look at two other tables that have duplicate keys
+
+
+
+```{r}
+x2
+y2
+```
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.5b: Duplicate keys
+
+
+If both tables have duplicate keys you get all possible combinations (Cartesian product). This is almost always an error! Always check the output dimension after you join a table because even if there is not a syntax error you might not get the table you are expecting!
+
+
+
+```{r}
+# initial left data frame only has 3 rows
+dim(x2)
+# left join when both the left and right tables have duplicate keys
+(cartesian_join <- left_join(x2, y2, by = c("L_key1" = "R_key1")))
+# output now has more rows than the initial table
+dim(cartesian_join)
+```
+
+
+
+
+$\\$
+
+
+
+
+#### Part 2.5c: Duplicate keys
+
+
+
+To deal with duplicate keys in both tables, we can join the tables **using multiple keys** in order to make sure that each row is uniquely specified
+
+
+```{r}
+# initial left data frame only has 3 rows
+dim(x2)
+# output now only has 3 rows
+left_join(x2, y2, c("L_key1" = "R_key1", "L_key2" = "R_key2"))
+```
+
+
+
+
+$\\$ 
+
+
+
+
+## Part 3: Creating cloropleth maps
+
+
+
+To practice creating cloropleth maps, let's plot data some demographic data which dates have growing numbers of younger people. 
+
+
+From more fun data sets to map, check out [howmuch.net](https://howmuch.net/sources/income-inequality-by-state)
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 3.1: Get map coordinates
+
+
+
+```{r}
+# Get the map of the States
+states_map <- map_data("state") 
+  
+# Plot a state
+states_map %>%
+  filter(region == "connecticut") %>%
+  ggplot(aes(x = long, y = lat)) + 
+  geom_polygon() + 
+  geom_point(aes(x = -72.9223, y = 41.3163), col = "red")   # add Yale
+```
+
+
+
+
+$\\$
+
+
+
+#### Part 3.2: Combine demographic data with the map coordinates
+
+
+
+```{r}
+# download the data
+# download_class_data("state_population.Rda")
+# load the data
+load("state_population.Rda")
+# get data from only 2013
+state_pop_2013 <- filter(state_pop, year == 2013)      
+# join state_pop_2013 and states_map data frames 
+states_map_2013 <- map_data("state") %>%   
+  left_join(state_pop_2013, by = c("region" = "state_lower"))
+# order the data
+states_map_2013 <- arrange(states_map_2013, group, order)
+```
+
+
+
+
+
+$\\$
+
+
+
+#### Part 3.3: Plot the map
+
+
+
+```{r}
+ggplot(states_map_2013, aes(x = long, y = lat, group = group,   fill = under18)) + 
+      geom_polygon(color = "black") +   
+      coord_map("polyconic")    # plots it on a curved earth map
+```
+
+
+
+**Question:**  What is wrong with this figure?  [Hint](https://xkcd.com/1138/)
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 3.4: Normalizing data
+
+
+
+```{r}
+ggplot(states_map_2013,  aes(x = long, y = lat, group = group,  fill = prop_under_18)) +   
+	geom_polygon(color = "black") + 
+	coord_map("polyconic") +   
+  scale_fill_gradient(low = "black", high = "red")
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 4: Reshaping data
+
+
+Sometimes it is more convenient to have data in a data frame that is in either a longer or a wider format. The tidyr package as two functions pivot_longer() and pivot_wider() which are useful for this. 
+
+
+Let us explore data that has the weather in different cities to understand why these functions are useful. 
+
+
+
+```{r}
+# use the tidyr package to reshape data
+library(tidyr)
+# download the data
+# download.file('https://raw.githubusercontent.com/emeyers/SDS230_F19/master/class_data/histWeather.csv', 'histWeather.csv')
+# load the data into R
+actual_weather <- read.csv('histWeather.csv')
+# convert variables to the appropriate types
+actual_weather <- actual_weather %>% 
+  mutate(Date = as.Date(Date)) %>%
+  mutate(PrecipitationIn = as.numeric(as.character(PrecipitationIn)))
+names(actual_weather)
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 4.1: Creating longer data
+
+
+Suppose we want to plot each of the weather measurements as a function of the data on a separate subplot. To do this it is convenient to first convert the data to a wide format and then we can use ggplot's facet_wrap() to plot each measurement. 
+
+
+```{r}
+# create longer data for New Haven only
+actual_weather_long <- actual_weather %>%
+  filter(AirPtCd == "KHVN") %>% 
+  select(-Events) %>%
+  pivot_longer(-c(AirPtCd, Date))  # convert all columns apart from AirPtCd and Date into the new longer column
+# plot the data
+actual_weather_long %>% 
+  ggplot(aes(x = Date, y = value)) + 
+  geom_line() + 
+  facet_wrap(~name, scales = "free")
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 4.2: Creating wider data
+
+
+Suppose we want to compare the minimum temperature in New York City to the minimum temperature in New Haven for each date of the year. To do this it would be useful to the minimum temperature of New York City and of New Haven in seperate columns. We can then subtract the values in these columns to get the temperature difference. 
+
+
+
+```{r}
+# just get the minimum temperature for New York City and New Haven
+simple_weather <- actual_weather %>%
+  select(Date, AirPtCd, Min_TemperatureF) %>%
+  filter(AirPtCd %in% c("KHVN", "KNYC"))
+# make a wider data frame that has separate columns for New York City and New Haven
+simple_weather_wide <- simple_weather %>% 
+  pivot_wider(names_from = AirPtCd, values_from = Min_TemperatureF)
+# Let's plot how much warmer New York City's minimum temperature is on each date
+simple_weather_wide %>%
+  mutate(temp_diff = KNYC - KHVN) %>%
+  ggplot(aes(x = KHVN, y = temp_diff)) + 
+  geom_jitter(alpha = .5) + 
+  xlab("New Haven minimum temperature") + 
+  ylab("Num degrees warmer in New York City") + 
+  geom_smooth() + 
+  geom_hline(yintercept = 0, col = "red")
+```

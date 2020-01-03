@@ -1,0 +1,469 @@
+---
+title: "Class 25 notes and code"
+output:
+  pdf_document: 
+   fig_width: 7
+   fig_height: 5
+  html_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+# install.packages("latex2exp")
+library(latex2exp)
+library(dplyr)
+library(ggplot2)
+#options(scipen=999)
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Overview: Wrap-up
+
+ * Two-way ANOVA
+ * Reshaping data
+
+
+
+
+$\\$
+
+
+
+## Part 1: Two-way ANOVA in R
+
+Let's use a two-way ANOVA to examine if faculty salaries differ depending on:
+ * The faculty rank: Full, Associate, Assistant, Lecturer)
+ * The type of institution: Extensive reseach institution vs. liberal arts college
+
+
+The code filters the data to get in in to the shape we need it for the next analyses
+
+
+```{r}
+# detach("package:car", unload=TRUE)
+# download_class_data("IPED_salaries_2016.rda")
+load('IPED_salaries_2016.rda')
+# factor A: liberal arts vs research university 
+# factor B: lecturer, assistant, associate, full professor
+IPED_3 <- IPED_salaries %>%
+  filter(rank_name %in% c("Lecturer", "Assistant", "Associate", "Full")) %>%
+  mutate(rank_name  = droplevels(rank_name)) %>%
+  filter(CARNEGIE %in% c(15, 31)) %>%
+  mutate(Inst_type = recode(CARNEGIE, "31" = "Liberal arts", "15" = "Research extensive"))
+# examine properties of the data
+dim(IPED_3)
+table(IPED_3$Inst_type, IPED_3$rank_name)
+```
+
+
+
+
+$\\$
+
+
+
+#### Part 1.1.: Visualizing the data
+
+
+Let's start by visualizing the data.  Does there appear to be a difference in salaries for faculty rank and institution type? 
+
+
+```{r}
+IPED_3  %>%
+  ggplot(aes(x = rank_name, y = salary_tot, col = Inst_type)) + 
+  geom_jitter(alpha = .25) + 
+  geom_boxplot() + 
+  xlab("Faculty rank") + 
+  ylab("Salary ($)") + 
+  ggtitle("Salaries based on faculty rank and institution type") + 
+  labs(col = "Institution type")
+  
+```
+
+
+
+
+$\\$
+
+
+
+#### Part 1.2.: Two-way ANOVA
+
+
+Let's now use a two-way ANOVA to run a hypothesis test to see if the differences are statistically significant.
+
+
+```{r}
+anova_model <- aov(salary_tot ~ Inst_type + rank_name, data = IPED_3)
+summary(anova_model)
+# actually better to use type III sum of squares using the car package
+# library(car)
+# car::Anova(anova_model, type = "III")
+```
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.3.: Interaction effects
+
+We can also examine whether there is an interaction between rank and institution type. This is assessing whether the difference between faculty ranks is the same across the types of institutions or whether the differences vary depending on institution (ot is similar to using the same slope or different slopes model for an interaction between a quantitative and categorical variable). 
+
+It is useful to visualize interactions first which we can do using the interaction.plot function.
+
+
+```{r}
+# Two-way interaction plot using base R
+interaction.plot(x.factor = IPED_3$rank_name, trace.factor = IPED_3$Inst_type, 
+                 response = IPED_3$salary_tot, fun = mean, 
+                 type = "b", legend = TRUE, 
+                 xlab = "Rank", ylab="Salary ($)",
+                 pch=c(1,19), col = c("#00AFBB", "#E7B800"))
+# Two-way interaction plot using base R - Alternative
+# interaction.plot(x.factor = IPED_3$Inst_type, trace.factor = IPED_3$rank_name,
+#                  response = IPED_3$salary_tot, fun = mean,
+#                  type = "b", legend = TRUE,
+#                  xlab = "Rank", ylab="Salary ($)",
+#                  pch=c(1,19), col = c("#00AFBB", "#E7B800"))
+# 
+```
+
+
+
+
+
+
+$\\$
+
+
+
+#### Part 1.4.: Testing interactions effects
+
+
+
+```{r}
+anova_model <- aov(salary_tot ~ Inst_type * rank_name, data = IPED_3)
+summary(anova_model)
+# actually better to use type III sum of squares using the car package
+# library(car)
+# car::Anova(anova_model, type = "III")
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.5.: Checking ANOVA assumptions
+
+
+As we have discussed before, particular assumptions should be met for inferences to be valid when using ANOVAs. While ANOVAs are often robust to violations of these assumptions, one should always check them. These assumptions include that the errors (as assessed through the residuals) are normally distributed and that the variance is the same for each group. 
+
+
+
+```{r}
+par(mfrow = c(2, 2))
+plot(anova_model)
+IPED_3 %>%
+  group_by(Inst_type, rank_name) %>%
+  summarize(var = var(salary_tot),
+            sd  = sd(salary_tot), 
+            mean = mean(salary_tot))
+```
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+## Part 2: Logistic regression
+
+
+Let us fit a logistic regression model trying to predict if a Toyota is used or new based on the car's price. 
+
+Below we load the data and plot it. 
+
+
+```{r}
+#download.file('https://yale.box.com/shared/static/gzu5lhulepp3zsyxptwxoeafpst1ccdv.rda', 'car_transactions.rda')
+load('car_transactions.rda')
+toyota_data <- filter(car_transactions, make_bought == "Toyota") %>%
+  mutate(new_or_used_bought = factor(as.character(new_or_used_bought, levels = c("U", "N"))))
+# order the factor Used < New
+toyota_data$new_or_used_bought <- relevel(toyota_data$new_or_used_bought, "U")
+# visualize the data
+toyota_data  %>% 
+  ggplot(aes(x = price_bought, y = new_or_used_bought)) + 
+  geom_jitter(alpha = .1, position = position_jitter(height = .2)) + 
+  xlab("Price ($)") + 
+  ylab ("New or used")
+  
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.1.: Fitting a logistic model to the data
+
+
+We can fit a logistic regression model using the glm() function. 
+
+
+We can extract the coeficients from the model to build a function that can give the probability a car is new based on the car's price. 
+
+
+Below we plot this function on the data.
+
+
+
+```{r}
+# build the logistic regression function 
+toyota_logit <- glm(new_or_used_bought ~ price_bought, data = toyota_data, family = "binomial")
+# extract the coefficients
+b0 <- coefficients(toyota_logit)[1]
+b1 <- coefficients(toyota_logit)[2]
+# create the prediction function 
+toyota_logit_function <- function(the_price){
+   prob_new <- (exp(b0 + b1 * the_price)) / (1 + exp(b0 + b1 * the_price))
+   names(prob_new) <- ""
+   return(prob_new)
+}
+  
+# what is the probability that a car that costs 10,000 is new? 
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.2.: Plotting the logistic regression function 
+
+
+We can plot the full logistic regression function using the code below. 
+
+
+
+```{r}
+# to plot this function we add 1 to it
+toyota_logit_plot <- function(the_price) {
+  toyota_logit_function(the_price) + 1
+}
+# plot the logistic regression function  
+toyota_data  %>%  
+  ggplot(aes(x = price_bought, y = new_or_used_bought)) + 
+  geom_jitter(alpha = .1, position = position_jitter(height = .2)) + 
+  xlab("Price ($)") + 
+  ylab ("Pr( new car | x)") + 
+  stat_function(fun = toyota_logit_plot, color = "red") +
+  xlim(-20000, 80000) # + 
+  # geom_vline(xintercept = 10000, col = "blue") + 
+  # geom_hline(yintercept = toyota_logit_plot(10000), col = "blue", linetype="dotted") 
+```
+
+
+
+$\\$
+
+
+
+
+#### Part 2.3.: Multiple logistic regression
+
+
+We can use multiple predictors in our logistic regression function as well. 
+
+
+```{r}
+# Plot the mileage for new and used cars
+toyota_data  %>% 
+  ggplot(aes(x = mileage_bought, y = new_or_used_bought)) + 
+  geom_jitter(alpha = .1, position = position_jitter(height = .2)) + 
+  xlab("Mileage") + 
+  ylab ("New or used") 
+toyota_logit <- glm(new_or_used_bought ~ price_bought + mileage_bought, data = toyota_data, family = "binomial")
+b0 <- coefficients(toyota_logit)[1]
+b1 <- coefficients(toyota_logit)[2]
+b2 <- coefficients(toyota_logit)[3]
+toyota_logit_function <- function(the_price, the_mileage)  {
+    (exp(b0 + (b1 * the_price) + (b2 * the_mileage))) / (1 + exp(b0 + (b1 * the_price) + (b2 * the_mileage)))
+}
+# predict $10,000 and 500 miles
+toyota_logit_function(10000, 500)
+# predict $10,000 and 5000 miles
+toyota_logit_function(10000, 5000)
+# create a 2D plot of the probability that a car is new as a function of price and mileage
+price_intervals <- seq(0, 20000, by = 100)
+mileage_intervals <- seq(0, 7500, by = 100)
+price_mileage_df <- data.frame()
+for (currPrice in price_intervals){
+  curr_df <- data.frame(price = currPrice, mileage = mileage_intervals, prob_new = toyota_logit_function(currPrice, mileage_intervals))
+  price_mileage_df <- rbind(price_mileage_df, curr_df)
+}
+price_mileage_df %>%
+  ggplot(aes(mileage, price)) +
+  geom_raster(aes(fill = prob_new)) + 
+  scale_fill_gradient(low = "black", high = "red") 
+```
+
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+## Part 3: Reshaping data
+
+
+Sometimes it is more convenient to have data in a data frame that is in either a longer or a wider format. The tidyr package as two functions pivot_longer() and pivot_wider() which are useful for this. 
+
+
+Let us explore data that has the weather in different cities to understand why these functions are useful. 
+
+
+
+```{r}
+# use the tidyr package to reshape data
+library(tidyr)
+# download the data
+#download.file('https://raw.githubusercontent.com/emeyers/SDS230_F19/master/class_data/histWeather.csv', 'histWeather.csv')
+# load the data into R
+actual_weather <- read.csv('histWeather.csv')
+# convert variables to the appropriate types
+actual_weather <- actual_weather %>% 
+  mutate(Date = as.Date(Date)) %>%
+  mutate(PrecipitationIn = as.numeric(as.character(PrecipitationIn)))
+names(actual_weather)
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+#### Part 3.1: Creating longer data
+
+
+Suppose we want to plot each of the weather measurements as a function of the data on a separate subplot. To do this it is convenient to first convert the data to a wide format and then we can use ggplot's facet_wrap() to plot each measurement. 
+
+
+```{r}
+# create longer data for New Haven only
+actual_weather_long <- actual_weather %>%
+  filter(AirPtCd == "KHVN") %>% 
+  select(-Events) %>%
+  pivot_longer(-c(AirPtCd, Date))  # convert all columns apart from AirPtCd and Date into the new longer column
+# plot the data
+actual_weather_long %>% 
+  ggplot(aes(x = Date, y = value)) + 
+  geom_line() + 
+  facet_wrap(~name, scales = "free")
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 3.2: Creating wider data
+
+
+Suppose we want to compare the minimum temperature in New York City to the minimum temperature in New Haven for each date of the year. To do this it would be useful to the minimum temperature of New York City and of New Haven in seperate columns. We can then subtract the values in these columns to get the temperature difference. 
+
+
+
+```{r}
+# just get the minimum temperature for New York City and New Haven
+simple_weather <- actual_weather %>%
+  select(Date, AirPtCd, Min_TemperatureF) %>%
+  filter(AirPtCd %in% c("KHVN", "KNYC"))
+# make a wider data frame that has separate columns for New York City and New Haven
+simple_weather_wide <- simple_weather %>% 
+  pivot_wider(names_from = AirPtCd, values_from = Min_TemperatureF)
+# Let's plot how much warmer New York City's minimum temperature is on each date
+simple_weather_wide %>%
+  mutate(temp_diff = KNYC - KHVN) %>%
+  ggplot(aes(x = KHVN, y = temp_diff)) + 
+  geom_jitter(alpha = .5) + 
+  xlab("New Haven minimum temperature") + 
+  ylab("Num degrees warmer in New York City") + 
+  geom_smooth() + 
+  geom_hline(yintercept = 0, col = "red")
+```

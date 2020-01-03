@@ -1,0 +1,398 @@
+---
+title: "Class 23 notes and code"
+output:
+  pdf_document: 
+   fig_width: 4
+   fig_height: 3
+  html_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+# install.packages("latex2exp")
+library(latex2exp)
+library(dplyr)
+#options(scipen=999)
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Overview: Multiple linear regression continued
+
+
+
+ * Plotting using grammar of graphics with ggplot
+ * Bonus ggplot features
+ * Joining data frames
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 1: Visualization with ggplot
+
+
+We can use the ggplot2 package which is part of the tidyverse to create much nicer looking graphics than using base R graphics. The ggplot2 library is modeled on Leland Wilkinson's "grammar of graphics" which tries to create graphics as a combination of basic visual elements. 
+
+
+In the exercises below, we will use the motor trends cars data set (mtcars) that comes with base R installation, and also the gapminder data. 
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.1: Scatter plots
+
+
+```{r}
+# install.packages("ggplot2")
+library(ggplot2)
+# base R
+plot(mtcars$wt, mtcars$mpg)
+# ggplot - mapping in the geom
+ggplot(data = mtcars) + 
+  geom_point(mapping = aes(x = wt, y = mpg))
+# ggplot - global mapping
+ ggplot(data = mtcars, aes(x = wt, y = mpg)) + 
+   geom_point()
+# ggplot - shorter global mapping
+ggplot(mtcars, aes(wt, mpg)) +
+  geom_point()
+```
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.2: Adding labels to plots
+
+
+We can add labels to the plots using the xlab("label1") and ylab("label2") functions
+
+
+
+```{r}
+# ggplot - shorter global mapping
+ggplot(mtcars, aes(wt, mpg)) +
+  geom_point() + 
+  ylab("Miles per Gallon") + 
+  xlab("Weight")
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.3: More aesthetic mappings
+
+
+```{r}
+# add color based on the transmission type (is automatic or not)
+ggplot(mtcars, aes(x = wt, y = mpg, col = am)) +
+  geom_point()
+# it is better to treat the transmission type as a categorical variable
+ggplot(mtcars, aes(x = wt, y = mpg, col = factor(am))) +
+  geom_point()
+mtcars %>%
+  mutate(am = as.factor(am)) %>%
+  ggplot(aes(x = wt, y = mpg, col = am)) +
+  geom_point()
+# can also try mappping transmission type to shape or size 
+mtcars %>%
+  mutate(am = as.factor(am)) %>%     
+  ggplot(aes(x = wt, y = mpg, size = am, shape = am, col = am)) +
+  geom_point()
+# mutating the names of a factor to be more meaningful 
+mtcars %>%
+  mutate(Transmission = ifelse(am == 0, "standard", "automatic")) %>%
+  ggplot(aes(x = wt, y = mpg, col = Transmission)) +
+  geom_point()
+```
+
+
+
+$\\$
+
+
+
+#### Part 1.4: Attributes vs. Aesthetics
+
+
+Setting an **aesthetic mapping** maps a variable to a **glyph property**
+
+Setting an **attribute** set a glyph property to a **fixed value**
+
+
+
+```{r}
+# setting a aesthetic
+ggplot(mtcars, aes(x = wt, y = mpg, col = factor(am))) +
+  geom_point()
+# setting an attribute
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point(col = "red")
+```
+
+
+
+
+$\\$
+
+
+
+#### Part 1.5: Facets
+
+
+Beyond comparing variables based on aesthetics you can compare categorical variables by splitting a plot into subplots (called facets) using facet_wrap()
+
+
+
+
+```{r}
+# separate subplots for the two transmission types
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point() + 
+  facet_wrap(~am)
+# One can also do facets in two dimensions
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point() + 
+  facet_grid(~vs ~am)
+```
+
+
+
+
+$\\$
+
+
+
+
+#### Part 1.6: Overplotting
+
+
+Sometimes points overlap making it hard to estimate the number of points at a particular range of values. 
+
+We can control the transparency of points by changing their alpha values.
+
+
+
+
+```{r}
+library(gapminder)
+# a lot of overplotting
+ggplot(gapminder, aes(x = gdpPercap, y = lifeExp)) + 
+  geom_point(alpha = .1)
+# changing the transparency levels makes it a bit easir to see how many points are at a given x, y location
+```
+
+
+
+
+
+$\\$
+
+
+
+
+#### Part 1.7: Changing scales
+
+
+We can transform the scales of continuous data too
+
+
+```{r}
+# changing the scale on the x-axis
+ggplot(gapminder, aes(x = gdpPercap, y = lifeExp)) + 
+  geom_point(alpha = .5, col = "blue") + 
+  scale_x_continuous(trans = "log10")
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 1.8: geoms
+
+
+We can use different geoms to create other types of plots.
+
+
+
+```{r}
+# Let's create a plot that shows the GDP in the United States as a function of the year using the geom geom_line()
+gapminder %>%
+  filter(country == "United States") %>%
+  ggplot(aes(x = year, y = gdpPercap)) + 
+  geom_line() + 
+  geom_point()
+# Let's plot a histogram of the weights of cars
+ggplot(mtcars, aes(x = wt)) + 
+  geom_histogram(bins = 10)
+# Let's create a boxplot of the weights of cars
+ggplot(mtcars, aes(x = "", y = wt)) + 
+  geom_boxplot()
+# Let's create a side-by-side boxplot of the weights of cars depending on the number of cylinders the engine has
+ggplot(mtcars, aes(x = factor(cyl), y = wt)) + 
+  geom_boxplot(fill = "red")
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.9: geoms continued
+
+Violin and Joy plots are other ways to view distributions of data
+
+
+
+```{r}
+# violin plot 
+ggplot(mtcars, aes(x = factor(cyl), y = wt)) + 
+  geom_violin(fill = "red") + 
+  geom_jitter()
+library("ggridges")
+# joy plot
+ggplot(mtcars, aes(y = factor(cyl), x = wt)) + 
+  geom_density_ridges()
+```
+
+
+[Joy](https://f4.bcbits.com/img/a1100189446_10.jpg)
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.10: geoms continued continued
+
+
+We can also have multiple geom layers on a single graph by using the + symbol
+E.g   ggplot(.) + geom_type1() + geom_type2()
+
+
+
+```{r}
+# Create a scatter plot of miles per gallon as a function of weight and then add a smoothed line using geom_smooth()
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.10: Themes
+
+
+We can also use different types to change the appearance of our plot
+
+```{r}
+# Add theme_classic() to our plot
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point() + 
+  theme_classic()
+```
+
+
+
+
+$\\$
+
+
+
+
+#### Part 1.11: Example - plotting the IPED faculty salary data
+
+
+```{r}
+# source('../../../SDS230_F19/class_functions/class_functions.R')
+# download_class_data("IPED_salaries_2016.rda")
+load("IPED_salaries_2016.rda")
+IPED_salaries %>%
+  filter(CARNEGIE %in% c(15, 31)) %>%
+  filter(rank_name %in% c("Lecturer", "Assistant", "Associate", "Full")) %>%
+ggplot(aes(endowment, salary_tot, col = rank_name)) + 
+  geom_point(alpha = .5) + 
+  scale_x_continuous(trans = "log10") + 
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_bw() + 
+  xlab("Log10 Endowment") + 
+  ylab("Salary ($)")
+```
+

@@ -1,0 +1,591 @@
+---
+title: "Class 6 notes and code"
+output: html_document
+---
+
+
+
+$\\$
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Review of homework 2
+ * Quantile-quantile plots
+ * Review concepts for using the bootstrap to create confidence intervals
+ * Using the bootstrap to calculate confidence intervals in R
+ * Formulas for creating confidence intervals
+
+
+
+
+$\\$
+
+
+
+
+
+## Part 1: Review of homework 2
+
+
+
+
+$\\$
+
+
+
+
+#### Problem 1 take-way: As n increases, the sampling distribution of $\bar{x}$ become more normal and the SE shrinks
+
+
+$\\$
+
+
+```{r problem_1_3}
+
+
+# plot the exponential (data) distribution
+x <- seq(0, 6, by = .0001) # x-values 
+y <- dexp(x)
+plot(x, y, ylab = 'f(x)', type = 'l',
+main = TeX("The exponential density with $\\lambda$ = 1"))
+
+
+
+# create sampling distributions x-bar for samples sizes n = 9, 36, 144
+for (n in c(9, 36, 144)) {
+
+  sampling_dist <- NULL
+  for (i in 1:10000) {
+    
+    rand_sample <- rexp(n)
+    sampling_dist[i] <- mean(rand_sample)
+    
+  }
+  
+  hist(sampling_dist, nclass = 100, 
+       xlab = expression(bar(x)), 
+       xlim = c(0, 9), 
+       main = TeX(sprintf("A sampling distribution of $\\bar{x}$ for n = %d", n)))
+  
+  
+# could visually inspect for normality using the qqnorm function 
+  qqnorm(sampling_dist)
+
+  print(SE <- round(sd(sampling_dist), 3))
+
+}
+
+```
+
+
+
+The equation for the standard error of the mean is:
+
+$s_{\bar{x}} = \frac{s}{\sqrt{n}}$
+
+
+From this equation we can see that as the sample size increases by multiples of 4, the standard error gets gets cut in half. 
+
+
+
+
+$\\$
+
+
+#### Problem 2 take-way: The standard deviation statistic would be biased if it used n in its denominator
+
+
+$\\$
+
+
+For a standard normal distribution, the variance parameter $\sigma^2$ is 1. This parameter is estimated by the statistic of the sample variance statistic $s^2$. Let's look at the sampling distributions for the ususal $s^2$ statistic and for an $s^2$ statistic that had a denominator of *n* rather than *n - 1* when data comes from a normal distribution and our sample size is n = 10. 
+
+
+
+```{r problem_2_1}
+
+# a function to create an estimate of the variance with denominator of n rather than n-1
+var_n <- function(data_sample){
+  var(data_sample) * (length(data_sample) - 1)/length(data_sample)
+}
+
+
+# creating the sampling distributions for variance statistics with denominator n and n-1
+sampling_dist_var <- NULL
+sampling_dist_var_n <- NULL
+
+for (i in 1:10000){
+  the_sample <- rnorm(10)
+  sampling_dist_var[i] <- var(the_sample)
+  sampling_dist_var_n[i] <- var_n(the_sample)
+}
+
+
+# plot the sampling distribution with the denominator of n - 1
+hist(sampling_dist_var, 
+     nclass = 100, 
+     xlim = c(0, 4), 
+     xlab = TeX("$s^2$"),
+     main = "Sampling distribution of the variance")
+
+abline(v = 1, col = "red")
+abline(v = mean(sampling_dist_var), col = "blue")
+
+
+# plot the sampling distribution with the denominator of n
+hist(sampling_dist_var_n, 
+     nclass = 100,
+     xlim = c(0, 4), 
+     xlab = TeX("$s^2$ (with denominator of n)"),
+     main = "Sampling distribution of the variance using a denominator of n")
+
+abline(v = 1, col = "red")
+abline(v = mean(sampling_dist_var_n), col = "blue")
+
+
+# look at the mean (expected value) of the sampling distribution E[var(X)] 
+# does it match the parameter for the variance sigma^2 = 1? 
+# => if not, then the statistic is "biased"
+(round(mean(sampling_dist_var), 3))
+(round(mean(sampling_dist_var_n), 3))
+
+
+```
+
+
+As we increase the sample size n, we find: 
+
+1) The distribution for the variance statistic $s^2$ becomes more normal 
+2) The variance statistic $s^2$ becomes more concentrated around the true parameter $\sigma^2$
+3) Using a denominator of *n* rather than *n-1* introduces less bias than when the sample size *n* is small
+
+
+
+
+$\\$
+
+
+
+
+## Part 2: Examining how data is distributed using quantile-quantile plots
+
+
+We can check if emperical data seems to come from a particular distribution using quantile-quantile plots (qqplots). qqplots plot the sorted data values in your sample as a function of the theoretical quantile values (at evenly spaced probability areas).
+
+Below is an illustration of quantile values for 10 data points that come from a normal distribution. If we have 10 data points in our sample, then to create a qqplot comparing our data to a standard normal distribution we would plot our data as a function of these theoretical quantile values. If the plot falls along a diagonal line, this indicates our data comes from the standard normal distribution 
+
+Also see [this explanation](https://www.statisticshowto.datasciencecentral.com/q-q-plots/)
+
+![](https://www.statisticshowto.datasciencecentral.com/wp-content/uploads/2015/08/qq-plot.png)
+
+
+
+
+
+Let's create a qqplot to compare the 1,000 points we created in our sampling distribution of the mean above (problem 1.3 with n = 144) to a normal distribution. 
+
+
+
+```{r qqplots}
+
+# create an sequence of values between 0 and 1 at even spaces
+prob_area_vals <- seq(0, 1, length.out = length(sampling_dist))
+
+# get the quantiles from these values
+quantile_vals <- qnorm(prob_area_vals)
+
+# create the qqplot
+plot(quantile_vals, sort(sampling_dist),
+     xlab = "Normal quantiles",
+     ylab = "Data quantiles",
+     main = "Quantile-quantile plot")
+
+```
+
+
+
+$\\$
+
+
+
+
+We can also use the qqnorm() function to do this more easily when comparing data to the normal distribution.
+
+
+```{r qqnorm}
+
+qqnorm(sampling_dist)
+
+```
+
+
+This data is pretty normal (can see in the plots above). Let's look at some highly skewed data.
+
+
+```{r skewed_qqplot}
+
+
+# data that is skewed to the right
+exp_data <- rexp(1000)
+
+hist(exp_data, breaks = 50, 
+     main = "Data from an exponential distribution", 
+     xlab = "Data values")
+
+qqnorm(exp_data)
+
+
+
+# data that is skewed to the left
+exp_data <- -1 * rexp(1000)
+
+hist(exp_data, breaks = 50, 
+     main = "Left skewed data", 
+     xlab = "Data values")
+
+qqnorm(exp_data)
+
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+## Part 3: Review of confidence intervals and the bootstrap
+
+
+
+
+$\\$
+
+
+Let's review confidence intervals and examine some formulas that can give us standard errors for $\bar{x}$ and $\hat{p}$...
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 4: The bootstrap
+
+The bootstrap is a method that can be used to estimate confidence intervals for a large range of parameters. 
+
+The central concept behind the bootstrap is the "plug-in principle" where we treat our sample of data as if it were the population. We then sample *with replacement* from out sample to create a *bootstrap distribution* which is a proxy for (the spread of) the sampling distribution. 
+
+
+
+$\\$
+
+
+
+#### Part 4.1: Creating a bootstrap distribution in R
+
+
+To sample data in R we can use the `sample(the_data)` function. To sample data with replacement we use the replace = TRUE argument, i.e., `sample(the_data, replace = TRUE)`.  
+
+Below we calculate the bootstrap distribution for mean age of OkCupid users using just the first 20 OkCupid users in the data set. 
+
+
+```{r}
+
+library(okcupiddata)
+
+# get the ages from the first 20 OkCupid profiles
+the_ages <- profiles$age[1:20] 
+
+# create the bootstrap distribution
+bootstrap_dist <- NULL
+for (i in 1:10000){
+  boot_sample <- sample(the_ages, replace = TRUE)
+  bootstrap_dist[i] <- mean(boot_sample)
+}
+
+
+# plot the bootstrap distribution to make sure it looks normal
+hist(bootstrap_dist, 
+     nclass = 100, 
+     xlab = TeX("$\\bar{x}$^*"), 
+     main = "Histogram of the bootstrap distribution")
+
+
+
+```
+
+
+$\\$
+
+
+
+#### Part 4.2: Calculating the bootstrap standard error SE*
+
+
+The standard deviation of the *bootstrap distribution* is usually a good approximation of the standard deviation of the sampling distrubition - i.e, it is a good approximation of the *standard error SE*.
+
+When our bootstrap distribution is relatively normal, we can use the fact that 95% of values fall within to standard deviations of a normal distribution to calculate 95% confidence intervals as:
+
+$CI_{95} = [stat - 2 \cdot SE^*,  stat + 2 \cdot SE^*]$
+
+For example, for a our bootstrap distribution we have a 95% confidence interval for the mean $\mu$ as: 
+
+$CI_{95} = [\bar{x} - 2 \cdot SE^*,  \bar{x} + 2 \cdot SE^*]$
+
+
+
+
+```{r bootstrap_SE}
+
+# calculate the bootstrap standard error SE* as the standard deviation of the bootstrap distribution 
+(SE_boot <- sd(bootstrap_dist))
+
+# calculate the 95% CI using SE*
+CI_lower <- mean(the_ages) - 2 * SE_boot
+CI_upper <- mean(the_ages) + 2 * SE_boot
+
+c(CI_lower, CI_upper)
+
+
+
+```
+
+
+$\\$
+
+
+Above we are using the bootstrap to create a 95% confidence interval which should capture the mean age $\mu_{age}$
+
+
+**Question:** What is the population that $\mu$ represents? 
+
+ a) The data set (data frame) of 59,946 cases?
+ b) All OkCupid users? 
+ c) All US citizens?
+ d) All adults in the world?
+
+ 
+It is important to define what the larger population is when doing statistical inference since you are really only answering questions about this population. 
+
+
+
+
+$\\$
+
+
+
+
+#### Part 4.3: Bootstrap percentile method
+
+If the bootstrap is not normal, we can use the bootstrap percentile method to create confidence intervals. 
+
+
+```{r bootstrap_percentile}
+
+# 95% CI using the bootstrap percentile method
+(CI_boot_percentile <- quantile(bootstrap_dist, c(.025, .975)))
+
+ 
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 5: Formulas for the standard error
+
+For particular statistics, there are formulas that give the standard error.
+
+
+$\\$
+
+
+#### Part 5.1: Formula for the standard error of the mean $\bar{x}$
+
+
+When our statistic of interest is the mean $\bar{x}$, the formula to compute the standard error of the mean is:
+
+
+(1) $\sigma_{\bar{x}} = \frac{\sigma}{\sqrt{n}}$
+
+and an estimate for this is given by:
+
+(2) $s_{\bar{x}} = \frac{s}{\sqrt{n}}$
+
+Where:
+
+* $\sigma$ is the population standard deviation, 
+* *s* is the standard deviation statistic computed from a sample of size *n* 
+* *n* is the sample size. 
+
+Note, equation 1 above is a theoretical construct since we will never know $\sigma$ (only Plato knows this) while equation 2 above is possible to calculate from a sample of data. 
+
+
+Let's use formula 2 to calculate the  $s_{\bar{x}}$:
+
+
+```{r part_5_1}
+
+mean_ages <- mean(the_ages)
+n <- length(the_ages)
+sd_ages <- sd(the_ages)
+
+(SE_ages <- sd_ages/sqrt(n))
+
+
+(CI <- mean_ages + SE_ages * c(-2, 2))
+
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 5.2: Formula for the standard error of a proportion $\hat{p}$
+
+
+When our statistic of interest is the sample proportion $\hat{p}$, the formula to compute the standard error of a proportion is:
+
+
+(1) $\sigma_{\hat{p}} = \sqrt{\frac{\pi (1 - \pi)}{n}}$
+
+and an estimate for this is given by:
+
+(2) $s_{\bar{x}} = \sqrt{\frac{\hat{p} (1 - \hat{p})}{n}}$
+
+Where:
+
+* $\pi$ is the population proportion 
+* $\hat{p}$ is the proportion from a sample of size *n* 
+* *n* is the sample size. 
+
+Again, equation 1 above is a theoretical construct since we will never know $\pi$ (only Plato knows this) while equation 2 above is possible to calculate from a sample of data. 
+
+
+
+$\\$
+
+
+
+**Question**: If we have formulas for the standard error of these statistics, why use the bootstrap?  
+
+
+
+
+$\\$
+
+
+
+#### Part 5.3: Bootstrap for CIs for proportions
+
+
+```{r bootstrap_proportion}
+
+# get drug use behavior for first 50 OkCupid users
+(type_of_drug_user_50 <- na.omit(profiles$drugs)[1:50])
+
+
+# calculate the p-hat statistic for "sometimes" drug users
+obs_stat <- prop.table(table(type_of_drug_user_50))
+(obs_stat <- obs_stat[2])
+
+
+# create a bootstrap distribution
+
+
+
+# plot a histogram of the bootstrap distribution
+
+
+
+# calculate the 95% CI using the percentile method
+
+
+# bootstrap estimate of the standard error, SE*
+
+
+# calculate the CI using the formula...
+
+
+# create the CI using the SE from the formula
+
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 6: Next class: Hypothesis tests
+
+
+Let's start our review of hypothesis tests by examining hypothesis tests for a single proportion $\pi$
+
+
+
+
+
+
+
+
+
+
+
+

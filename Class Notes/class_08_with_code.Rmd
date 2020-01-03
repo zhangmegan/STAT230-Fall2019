@@ -1,0 +1,442 @@
+---
+title: "Class 8 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Review of homework 3
+ * Writing your own functions
+ * Quick review of concepts behind a hypothesis test for a single proportion
+ * Hypothesis tests for a single proportion in R
+ * Permutation tests for two means in R
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 0: Review of homework 3
+
+
+
+#### Part 0.1: Review of homework problem 2.2
+
+
+The line of code below extracts the incomes from the first 10 OkCupid users. Compare the confidence intervals for the mean income using:
+
+1) the formula for the standard error
+2) the bootstrap estimate of the standard error
+3) the bootstrap percentile method
+
+Report which confidence interval(s) seems to give the most reasonable results, and give an explanation for why they differ. Also, assuming that the whole population is just the OkCupid users in the profiles data frame, calculate the value of the parameter that these confidence intervals are trying to capture (using the appropriate symbol) and report whether all these methods capture this parameter value. 
+
+
+
+```{r problem_2_2}
+
+library(okcupiddata)
+
+
+# sample size of the first n users to include
+n <- 10 
+
+
+# extract OkCupid user's incomes from the users that listed their income
+the_income <- na.omit(profiles$income)[1:n]
+
+
+# create a bootstrap distribution
+bootstrap_dist <- NULL
+for (i in 1:10000){
+  boot_sample <- sample(the_income, replace = TRUE)
+  bootstrap_dist[i] <- mean(boot_sample)
+}
+
+# plot the boostrap distribution
+hist(bootstrap_dist, 
+     nclass = 100, 
+     xlab = TeX("$\\bar{x}$^*"), 
+     main = "Histogram of the bootstrap distribution")
+
+
+critical_value <- 2
+#critical_value <- pt(.975, n - 1)
+ 
+# calculate the bootstrap estimate of the standard error SE*
+SE_boot <- sd(bootstrap_dist)
+(CI_boot <- mean(the_income) + c(-critical_value, critical_value) * SE_boot)
+
+# calculate a CI using the bootstrap perentiles
+(CI_boot_percentile <- quantile(bootstrap_dist, c(.025, .975)))
+
+# calculate the CI based on using equation 2 to estimate the SE
+SEM <- sd(the_income)/sqrt(length(the_income))
+(CI <- mean(the_income) + c(-critical_value, critical_value) * SEM)
+
+# calculate the parameter value
+(parameter_value_mu <- mean(na.omit(profiles$income)))
+
+
+```
+
+
+
+**Answers** The confidence interval obtained are:
+
+1) the formula based method: [`r round(CI)`]
+2) the bootstrap SE method: [`r round(CI_boot)`]
+3) the bootstrap SE method: [`r round(CI_boot_percentile)`]
+
+The method that seems more reasonable to me is the bootstrap percentile method since the other two methods contain negative values which doesn't make sense since all OkCupid users reported positive incomes so there is no way the parameter $\mu$ could be negative. 
+
+The reason that these methods differ is because the sampling distribution is not normal due to the fact that the underlying distribution is highly skewed right (and has one large outlier) and that the sample size is small. 
+
+The true parameter value is $\mu$ = `r round(parameter_value_mu)` and all three methods captured it. 
+
+
+Note: with such a strange looking bootstrap distribution one should be careful trusting the confidence intervals returned by these methods - although since we have the full population, we know that all three methods did indeed capture the true parameter value. If one increases the sample size to the first 20 users, the sampling distribution becomes much more reasonable looking (although still not completely normal) and I would trust these methods much more. 
+
+
+
+**One should really visually explore data before doing inferential analyses. You will do some further exploratory analyses on OkCupid users' income on the next homework**
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+#### Part 1: Writing functions in R
+
+
+We can write functions in R using the function() function!
+
+
+
+```{r writing_functions}
+
+
+# a function that takes a value to the third power
+cubic_it <- function(x){
+  x^3
+}
+
+
+cubic_it(2)
+
+
+
+```
+
+$\\$
+
+
+We can write more complex functions, such as one that create bootstrap confidence intervals.
+
+
+
+```{r bootstrap_function}
+
+
+# a function that create a bootstrap percentile confidence interval
+create_bootstrap_mean_percentile_CI <- function(data_sample){
+  
+  
+  # create a bootstrap distribution
+  bootstrap_dist <- NULL
+  for (i in 1:10000){
+    boot_sample <- sample(data_sample, replace = TRUE)
+    bootstrap_dist[i] <- mean(boot_sample)
+  }
+  
+  
+  # plot the boostrap distribution
+  hist(bootstrap_dist, 
+       nclass = 100, 
+       xlab = TeX("$\\bar{x}$^*"), 
+       main = "Histogram of the bootstrap distribution")
+  
+  
+  # create the bootstrap percentile interval
+  quantile(bootstrap_dist, c(.025, .975))
+  
+}
+
+
+
+
+# get bootstrap 
+valid_income_data <- na.omit(profiles$income) 
+
+
+create_bootstrap_mean_percentile_CI(valid_income_data[1:50])
+
+
+
+
+
+```
+
+
+
+$\\$
+
+
+
+![](https://raw.githubusercontent.com/emeyers/SDS230_F19/master/class_images/class_06/bootshot.png)
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+## Part 2: Hypothesis tests for a single proportion
+
+
+Let's quickly review of hypothesis tests by examining hypothesis tests for a single proportion $\pi$
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 3a: Running a randomization test for a single proportion in R
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 3.1: Is it possible to smell whether someone has Parkinson's disease? 
+
+
+Joy Milne claimed to have the ability to smell whether someone had Parkinson's disease.
+
+To test this claim, researchers gave Joy 6 shirts that had been worn by people who had Parkinson's disease and 6 people who did not
+
+Joy identified 11 out of the 12 shirts correctly. 
+
+Let's run a hypothesis test to assess whether there is significant evidence to suggest that Joy can really could smell whether someone has Parkinson's disease.
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 1: State the null and alternative hypotheses in symbols and words, and set up the rules of the game
+
+**In words:** 
+
+* Null hypothesis: Joy's ability to smell whether someone has Parkinson's disease is a chance guess of 1/2
+* Alternative hypothesis: Joy can smell whether someone has Parkinson's disease at a level greater than chance of 1/2
+
+
+
+**Using symbols**
+
+$H_0: \pi = 0.5$
+$H_A: \pi > 0.5$
+
+
+
+**Rules of the game**
+
+If there is a less than 5% probability we would get a random statistic as or more extreme than the observed statistic if $H_0$ was true, then we will reject $H_0$ and say that $H_A$ is likely to be true true. 
+
+
+$\alpha = 0.05$
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 2: Calculate the observed statistic
+
+```{r joy_obs_stat}
+
+(obs_stat <- 11/12)
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 3: Create the null distribution
+
+
+
+```{r null_dist}
+
+# use the rbinom function to create the null distribution
+flip_sims <- rbinom(10000, 12, .5)
+
+flip_sims_prop <- flip_sims/12
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+##### Step 4: Calculate a p-value
+
+
+```{r p_value}
+
+
+(p_value <- sum(flip_sims_prop >= obs_stat)/length(flip_sims))
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 5: Make a decision
+
+Since `r p_value` is less than $\alpha = 0.05$ we can reject the null hypothesis (and perhaps say the results are "statistically significant")
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+**Questions**
+
+ 1. Do you believe Joy can really smell Parkinson's disease? 
+ 
+    - What about after [you read this article](https://wapo.st/2lW9GQL)? 
+
+ 2. Is it better to report the actual p-value or just whether we rejected the null hypothesis $H_0$? 
+ 
+ 
+ 
+ 
+ 
+ 
+$\\$
+ 
+ 
+
+
+
+
+
+## Part 3b: Do more than 25% of American's believe in ghosts? 
+
+A telephone survey of 1000 randomly selected US adults found that 31% of them say they believe in ghosts. Does this provided evidence that more than 1 in 4 US adults believe in ghosts?  
+
+
+Try it on your own and we will quickly review it next class...
+

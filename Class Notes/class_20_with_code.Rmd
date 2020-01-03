@@ -1,0 +1,427 @@
+---
+title: "Class 20 notes and code"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+# install.packages("latex2exp")
+library(latex2exp)
+#options(scipen=999)
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+
+
+$\\$
+
+
+
+
+## Overview: Multiple linear regression continued
+
+
+
+ * Multicolinearity and the variance inflated factor
+ * Polynomial regression
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 1: Multiple linear regression using baseball data
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 1.1: Creating a few commonly used baseball statistics
+
+
+Let's explore which statistic has the highest correlation with the number of runs a team has scored. 
+
+We can start by creating a few commonly used statistics/metrics for quantifying hitting ability by running the code below. 
+
+
+```{r}
+# install.packages('Lahman')
+library(Lahman)
+library(dplyr)
+# View(Teams)
+# reduce the data frame to the main batting statistics of interest
+team_batting <- select(Teams, yearID, teamID, G,  W,  L, R,  AB,  H,  X2B, X3B,  HR,  BB,  SO, SB, CS,  HBP, SF)
+# get commonly used composite statistics 
+team_batting <- mutate(team_batting,
+                       X1B = H - (X2B + X3B + HR), 
+                       BA = H/AB, 
+                       OBP = (H + BB)/(AB + BB),
+                       SlugPct = (X1B + 2 * X2B + 3 * X3B + 4 * HR)/AB,
+                       OPS = OBP + SlugPct)
+# only use teams that have played the 162 games in a season (the number of games currently in a MLB season)
+team_batting <- filter(team_batting, G == 162)
+  
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+#### Part 1.2: Fitting a regression model to come up with a better metric
+
+
+Let's now use the lm() function to fit a linear regression model that can potentially do a better job at predicting runs.
+
+We can also evaluate which variables seem to be useful for predicting runs.
+
+
+
+
+```{r}
+# fit the multiple regression model
+fit <- lm(R ~ X1B + X2B + X3B + HR + BB + AB, data = team_batting)
+# examine the coefficients
+(baseball_coefs <- coef(fit))
+# look at the model fit statistics
+(summary_fit <- summary(fit))
+```
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.3a: Examining how variables affect each other
+
+
+In the above problem we notice that the coefficient for at-bats (AB) is negative. This doesn't make too much sense because if a team has more changes to hit the ball (i.e., at-bats) then they should score more runs. 
+
+Let's explore this by fitting a model for predicting runs R using at-bats (AB).
+
+
+
+```{r}
+# fit the model using only AB
+fit_AB_only <- lm(R ~ AB, data = team_batting)
+summary(fit_AB_only)
+```
+
+
+
+
+$\\$
+
+
+
+
+#### Part 1.3b: Examining how variables affect each other
+
+
+So why is the coefficient on AB negative when we fit multiple variables? 
+
+The reaons is that we when we fit multiple variables, the coefficient for a variable $x_i$ is given by how much $x_i$ can predict of $y$ out of the values in $x_i$ that **can't be predicted by the other predictors**. 
+
+To assess this we can:
+
+a) predict $x_i$ from the other predictors
+b) use the residuals of this fit to predict $y$
+c) the coefficient of the residuals from part a) is the same as the coefficient for $x_i$ when fitting the full multiple regression model. 
+
+
+
+
+```{r}
+fit_pred_AB <- lm(AB ~ X1B + X2B + X3B + HR + BB, data = team_batting)
+(fit_from_AB_residuals <- lm(R ~ fit_pred_AB$residuals, data = team_batting))
+#(summary_fit <- summary(fit))
+```
+
+
+To understand this another way, the other variables X1B, X2B, etc. are predicting runs (R) already, so having more at-bats (AB) after already accounting for these other predictors is a bad thing because these at-bats led to the hitter getting out (hence the coefficient on AB is negative in the multiple regression model). 
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+#### Part 1.4: Can you come up with a regression model that has an even higher correlation with runs? 
+
+
+Last class we added more derived variables to our regression model to try to get a better fit. 
+
+We saw that building a regression model with the old and new variables led to most of the variables not being statistically significant. 
+
+
+Let's examine that further...
+
+
+
+
+```{r}
+team_batting2 <- mutate(team_batting, 
+                        X1Bn = X1B/AB, 
+                        X2Bn = X2B/AB, 
+                        X3Bn = X3B/AB, 
+                        XHRn = HR/AB, 
+                        XBBn = BB/AB)                        
+                        
+fit2 <- lm(R ~ (X1B + X2B + X3B + HR + BB + X1Bn + X2Bn + X3Bn + XHRn + XBBn), data = team_batting2)
+(summary_fit2 <- summary(fit2))
+summary_fit2$r.squared
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 1.5: Multicolinearity
+
+
+Multicolinearity occurs when predictor variables are highly correlated with each other. If there is multicolinearity, there are multiple variables that can make equally good predictions for $y$ and this ends up making the coefficients on these variables not statistically significant. 
+
+The variance inflated factor (VIF) is a statistic to assess multicolinearity. A rule of thumb is that $VIF_i$ > 5 indicates significant multicolinearity. 
+
+
+
+```{r}
+library(car)
+# Looking at the original model 
+vif(fit)
+pairs(select(team_batting, X1B, X2B, X3B, HR, BB, AB))
+# Looking at the VIF for the model with the additional variables
+fit2 <- lm(R ~ (X1B + X2B + X3B + HR + BB + X1Bn + X2Bn + X3Bn + XHRn + XBBn), data = team_batting2)
+# are these greater than 5? 
+vif(fit2)
+plot(team_batting2$X1B, team_batting2$X1Bn,
+     xlab = "singles (X1B)", 
+     ylab = "single per at bat (X1Bn)", 
+     main = paste0("r = ", round(cor(team_batting2$X1B, team_batting2$X1Bn), 3)))
+pairs(select(team_batting2, X1B, X2B, X3B, HR, BB, X1Bn, X2Bn, X3Bn, XHRn, XBBn))
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 1.5: Comparing nested models
+
+
+We can also see if a particular predictor is important in a model by comparing a model with that predictor to a model that has that predictor removed using a F-test. 
+
+
+Let's see if it is important to have at-bats (AB) in our model at all
+
+
+```{r}
+# fit the multiple regression model
+fit_original <- lm(R ~ X1B + X2B + X3B + HR + BB + AB, data = team_batting)
+# fit the multiple regression model
+fit_no_AB <- lm(R ~ X1B + X2B + X3B + HR + BB, data = team_batting)
+anova(fit_no_AB, fit_original)
+```
+
+
+Added at-bats (AB) leads to a model with a better fit so $\beta_{AB} \ne 0$ 
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 2: Polynomial regression
+
+
+We can potentially increase the ability to fit our data by adding polynomial expanded terms to our regression model.
+
+$\hat{y} = \beta_0 + \beta_1 x_1 + \beta_2 x_1^2 + \beta_3 x_1^3 + ...$ 
+
+
+
+
+$\\$
+
+
+
+
+#### Part 2.1: Looking at used corollas again
+
+
+
+Let's look at our used toyota corolla data again
+
+
+
+```{r}
+#download.file('https://yale.box.com/shared/static/gzu5lhulepp3zsyxptwxoeafpst1ccdv.rda', 'car_transactions.rda')
+load('car_transactions.rda')
+used_corollas <- select(car_transactions, 
+                        price_bought, 
+                        mileage_bought,
+                        model_bought,
+                        make_bought,
+                        new_or_used_bought)
+used_corollas <- filter(used_corollas, 
+                        model_bought == "Corolla", 
+                        new_or_used_bought == "U")
+used_corollas <- na.omit(used_corollas)
+```
+
+
+
+
+
+$\\$
+
+
+
+
+#### Part 2.2: Polynomial regression on the car data
+
+
+Let's now create polynomial fits predicting the price a car was sold as a function of $mileage$ + $mileage^2$ + $mileage^3$ + ...
+
+Let's do this for polynomials from order 1 up to order 5
+
+
+
+```{r}
+all_models <- list()
+for (i in 1:5){
+  all_models[[i]] <- lm(price_bought ~ poly(mileage_bought, degree = i), data = used_corollas)
+}
+summary(all_models[[5]])
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.3: Comparing R^2 and adjusted R^2
+
+
+Let's commpare the $R^2$ and $R_{adj}^2$ values
+
+
+```{r}
+all_r_squared <- NULL
+all_r_adj <- NULL
+for (i in 1:5){
+  
+  curr_model <- all_models[[i]]
+  
+  model_summary <- summary(curr_model)
+  
+  all_r_squared[i] <- model_summary$r.squared
+  all_r_adj[i] <- model_summary$adj.r.squared
+  
+}
+all_r_squared
+all_r_adj
+```
+
+
+
+
+
+
+
+#### Part 2.4: Visualizing the model
+
+
+Let's visualize the model of degree 5
+
+
+```{r}
+# create x values of miles from 0 to 300,000
+x_vals_df <- data.frame(mileage_bought = 0:300000)
+i <- 5   # degree to plot
+y_vals_predicted <- predict(all_models[[i]], newdata = x_vals_df)
+plot(price_bought ~ mileage_bought, data = used_corollas, ylim = c(0, 60000),
+     xlab = "mileage", ylab = "price")
+points(x_vals_df$mileage_bought, y_vals_predicted, 
+     type = "l", col = "red")
+```
+
+
+
+
+
+
+
+$\\$

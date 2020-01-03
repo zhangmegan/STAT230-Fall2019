@@ -1,0 +1,231 @@
+---
+title: "Class 13 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Parametric for more than 2 means (one-way ANOVA)
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 1: Parametric tests for more than two means (one-way ANOVA)
+
+
+
+Are movies that have particular Motion Picture Association of America (MPAA) ratings (i.e., G, PG, PG-13 or R) enjoyed more by movie critics? In the exercises below we will run hypothesis tests to examine this question using data from ~456 movies randomly selected from the [Rotten Tomatoes website](https://www.rottentomatoes.com/). 
+
+The code below loads the movie data in an object called `movies` and it also creates an object called `movies3` which only keeps movies with ratings of G, PG, PG-13 and R.  For all the exercises below, **only use the data in the movies3 data frame**. For a codebook describing the variables in this dataframe, [please see this website](http://www2.stat.duke.edu/~mc301/data/movies.html).
+
+
+
+```{r get_rotten_tomatoes_data}
+
+
+# download the data
+# download.file('http://www2.stat.duke.edu/~mc301/data/movies.Rdata', 'movies.Rdata')
+
+
+# load the data
+load('movies.Rdata')
+
+# only keep movies rated "G", "PG", "PG-13", "R"
+movies3 <- movies[movies$mpaa_rating %in% c("G", "PG", "PG-13", "R"), ]
+movies3$mpaa_rating <- droplevels(movies3$mpaa_rating)
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+**Part 1.0 - step 0** Let's start our analysis by describing and plotting the data. Please report the number of cases and the number of variables in the `movies3` data frame, and what each case corresponds to. Also, create a side-by-side boxplot comparing the critics' scores of the movie for each MPAA rating level. Does it appear that the critics' scores differ on average depending on the MPAA classification of the movie? 
+
+
+```{r visualize_movies}
+
+(movie_df_size <- dim(movies3))
+
+
+boxplot(critics_score ~ mpaa_rating, data = movies3, 
+        xlab = "MPAA rating", 
+        ylab = "Critics' score",
+        main = "Critics' scores for each MPAA rating level")
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+**Part 1.1 - step 1**:  Let's examine whether there is a statistically significant difference in the mean critics' scores for each MPAA level. Start by stating the null and alternative hypotheses in symbols and words, and also state the alpha level that is most commonly used. 
+
+
+
+
+**In words**
+
+The null hypothesis is that there is no difference between the mean scores critics give a movie depending on the MPAA's rating. The alternative hypothesis is that there are some MPAA ratings that have different mean critic scores. 
+
+
+**In symbols**
+
+$H_0: \mu_G = \mu_{PG} = \mu_{PG-13} = \mu_R$
+$H_A: \mu_i \ne \mu_j$ for some i = j, where i, j are in {G, PG, PG-13 and R}
+
+
+
+**The significance level**
+
+The significance level is probability of falsely rejected $H_0$ when it is true. The typical level used is $\alpha = 0.05$
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+**Part 1.2 - steps 2 to 5**:  We could also run the hypothesis test comparing the means based on using an F-statistic. The equation for an F-statistic is:
+
+$$F ~ = ~ \frac{ \mbox{between-group variability}}{\mbox{within-group variability}} ~ = ~ \frac{\frac{1}{K - 1}\sum_{i=1}^{K}{n_i(\bar{x}_i - \bar{x}_{tot})^2}}{\frac{1}{N - K}\sum_{i=1}^{K}\sum_{j=1}^{n_i}{(x_{ij}-\bar{x}_i)^2}}$$
+
+In the above equation, the symbols mean the following:
+
+ * K = 4 corresponds to the 4 MPAA rating levels (G, PG, PG-13, and R)
+ * N corresponds to the total number of movies we are using in our analysis
+ * $x_{ij}$ corresponds to the $j^{th}$ movie with a rating in the $i^{th}$ MPAA rating level
+ * $n_i$ is the number of movies in the $i^{th}$ group (e.g., the number of movies with a rating of G)
+ * $\bar{x}_i$ is the average score for the $i^{th}$ group (e.g., the average score for movies with a rating of G)
+
+
+Writting the code out to calculate the F-statistic seems like a lot of work (although hopefully doable for everyone in the class!). Let's cheat and just use R's built in ANOVA functions... 
+
+
+
+```{r F_permutation_test}
+
+fit <- aov(critics_score ~ mpaa_rating, data = movies3)
+
+summary(fit)
+
+
+```
+
+
+How does R's ANOVA function work? Conceptually you can think of it as computing the F-statistic and using the F-distribution to get the p-value, although R actually solves this problem in another equivalent way using code written to do regression which gives the same answer. We will discuss this more after we have discussed regression. 
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+**Part 1.3 - checking ANOVA assumptions**: 
+
+```{r}
+
+# visualize data in each group (could also do qqplot to examine normality)
+stripchart(critics_score ~ mpaa_rating, 
+           data = movies3, 
+           method = "jitter", 
+           vertical = TRUE, 
+           pch = 1,
+           ylab = "critic's score", 
+           xlab = "MPAA rating")
+
+
+# not very normal :(  - although ANOVAs are pretty robust to this
+pg_movies <- movies3[movies3$mpaa_rating == "PG", ]  
+qqnorm(pg_movies$critics_score)
+hist(pg_movies$critics_score)
+
+
+# standard deviations seem similar in each group
+by(movies3$critics_score, movies3$mpaa_rating, sd)
+
+
+```
+
+
+The data in the groups is not normally distributed (as we would expect), however the ANOVA is often very robust to a violation of the normal assumption [as can be seen in this paper by Blanca et al 2017](https://www.ncbi.nlm.nih.gov/pubmed/29048317)
+
+
+
+$\\$
+

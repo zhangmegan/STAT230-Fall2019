@@ -1,0 +1,410 @@
+---
+title: "Class 9 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Review hypothesis tests for a single proportion
+ * One vs two tailed tests
+ * Permutation tests for two means
+ * Permutation tests for two means in R
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 1: Hypothesis tests for a single proportion
+
+
+$\\$
+
+
+Recall the five steps of hypothesis testing:
+
+ 0) Plot your data
+ 1) State the null and alternative hypotheses, and choose an alpha level
+ 2) Calculate the observed statistic 
+ 3) Create a null distribution:  distribution of statistics if $H_0$ were true
+ 4) Calculate the p-value: 
+   - probability of getting a statistic from the null distribution more extreme than the observed statistic 
+ 5) Make a judgement
+
+
+It would be useful to memorize these steps!
+
+
+
+
+$\\$
+
+
+
+
+
+## Do more than 25% of American's believe in ghosts? 
+
+A telephone survey of 1000 randomly selected US adults found that 31% of them say they believe in ghosts. Does this provided evidence that more than 1 in 4 US adults believe in ghosts?  
+
+
+
+
+
+##### Step 1: State the null and alternative hypotheses in symbols and words, and set up the rules of the game
+
+
+**In words:** 
+
+* Null hypothesis: 25 percent of Americans believe in ghosts 
+* Alternative hypothesis: More than 25% of Americans believe in ghosts
+
+
+**Using symbols**
+
+$H_0: \pi = 0.25$
+$H_A: \pi > 0.25$
+
+
+
+**Rules of the game**
+
+If there is a less than 5% probability we would get a random statistic as or more extreme than the observed statistic if $H_0$ we will reject $H_0$ and say $H_A$ is likely to be true.
+
+
+
+$\alpha = 0.05$
+
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 2: Calculate the observed statistic
+
+```{r ghost_obs_stat}
+
+(obs_stat <- 0.31)
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+##### Step 3: Create the null distribution
+
+
+
+```{r null_dist_ghost}
+
+flip_sims <- rbinom(10000, 1000, .25)
+
+flip_sims_prop <- flip_sims/1000
+
+```
+
+
+
+$\\$
+
+
+
+
+
+
+
+##### Step 4: Calculate a p-value
+
+
+```{r p_value_ghost}
+
+
+(p_value <- sum(flip_sims_prop >= obs_stat)/length(flip_sims))
+
+
+
+```
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+##### Step 5: Make a decision
+
+Since `r p_value` is less than $\alpha = 0.05$ we can reject the null hypothesis (and perhaps say the results are "statistically significant").
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+![](https://i1.wp.com/flowingdata.com/wp-content/uploads/2014/06/Paranormal-distribution-smaller.png?w=400&ssl=1)
+
+
+
+ 
+ 
+$\\$
+ 
+
+
+
+
+
+
+
+## Part 2: One vs two tailed tests and permutation tests for comparing two sample means
+
+Let's go through the logic of how to run a randomization (permutation) test for comparing 2 means...
+
+
+
+
+
+## Part 3: Permutation tests for comparing two sample means in R
+
+
+
+##### Step 0: Plot the data
+
+
+```{r pill_plot}
+
+
+
+treat <- c(7, -4, 18, 17, -3, -5,  1, 10, 11, -2)
+control <- c(-1,  12,  -1,  -3,   3,  -5,   5,   2, -11,  -1,  -3)
+
+
+
+# plot the data
+boxplot(treat, control, 
+        names = c("Treatment", "Control"),
+        main = "Comparison of decrease in blood pressure",
+        ylab = "Blood pressure decrease")
+
+
+
+# create a stripchart
+data_list <- list(treat, control) 
+  
+stripchart(data_list, 
+           group.names = c("treatment", "control"), 
+           main = "Comparison of decrease in blood pressure",
+           xlab = "Blood pressure decrease", 
+           col = c("red", "blue"))
+
+
+```
+
+
+
+
+
+
+
+##### Step 1: State the null and alternative hypotheses 
+
+
+$H_0: \mu_{treat} - \mu_{control} = 0$
+$H_A: \mu_{treat} - \mu_{control} > 0$
+
+
+$\alpha = 0.05$
+
+
+
+
+$\\$
+
+
+
+
+##### Step 2: Calculate the observed statistic
+
+```{r pill_obs_stat}
+
+
+obs_stat <- mean(treat) - mean(control)
+
+
+
+```
+
+
+
+$\\$
+
+
+
+
+
+##### Step 3: Create the null distribution
+
+
+
+```{r null_dist_pill}
+
+
+# combine the data from the treatment and control groups together
+combined_data <- c(treat, control)
+
+
+# use a for loop to create shuffled treatment and control groups and shuffled statistics 
+null_distribution <-  NULL
+for (i in 1:10000) {
+
+       # shuffle data
+        shuff_data <- sample(combined_data)
+
+        # create fake treatment and control groups
+        shuff_treat   <-  shuff_data[1:10]
+        shuff_control  <-  shuff_data[11:21]
+
+        # save the statistic of interest
+        null_distribution[i] <- mean(shuff_treat) - mean(shuff_control)
+
+        
+}
+
+
+# plot the null distribution as a histogram
+hist(null_distribution, 
+     nclass = 200,
+     main = "Null distribution", 
+     xlab = TeX("$\\bar{x}_{shuff-treat} - \\bar{x}_{shuff-control}$"))
+
+
+
+
+```
+
+
+
+$\\$
+
+
+
+
+##### Step 4: Calculate a p-value
+
+
+```{r p_value_pill}
+
+
+# plot the null distribution again with a red line a the value of the observed statistic
+hist(null_distribution, 
+     nclass = 200,
+     main = "Null distribution", 
+     xlab = TeX("$\\bar{x}_{shuff-treat} - \\bar{x}_{shuff-control}$"))
+
+
+abline(v = obs_stat, col = "red")
+
+
+
+# calculate the p-value
+(p_value <- sum(null_distribution >= obs_stat)/10000)
+
+
+
+
+```
+
+
+
+
+$\\$
+
+
+
+##### Step 5: Make a decision
+
+Since `r p_value` is greater than $\alpha = 0.05$ we can not reject the null hypothesis. Thus if we are using the Neyman-Pearson paradigm, we do not have sufficient evidence to say that the pill is effective. 
+
+
+
+$\\$
+
+
+
+
+
+![](https://raw.githubusercontent.com/emeyers/SDS230_F19/master/class_images/class_09/pills.jpg)
+
+
+
+
+
+$\\$
+

@@ -1,0 +1,324 @@
+---
+title: "Class 21 notes and code"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+# install.packages("latex2exp")
+library(latex2exp)
+#options(scipen=999)
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+
+
+$\\$
+
+
+
+
+## Overview: Multiple linear regression continued
+
+
+
+ * More dplyr
+ * Incorporating categorical variables into linear models
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 2: Data summarization with dplyr
+
+
+So far we have used the following dplyr functions
+
+a) filter() to reduce the number of rows
+
+b) select() to get a subset of variables 
+
+c) mutate() to add on new variables to a data frame
+
+d) arrange() to rearrange the order of rows in a data frame
+
+e) sample_n() to randomly sample rows in a data frame
+
+
+
+One of the most powerful features of dplyr is the ability to summarize data in different groups. To do this we use:
+
+a) group_by() which specifies which groups to compute statistics over
+b) summarize() function which creates separate statistics for each group 
+
+
+Let's try this on the Edmunds car data
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 2.1: Summary statistics by group
+
+
+Let's get the mean price for used cars separately for each brand
+
+
+
+
+```{r}
+library(dplyr)
+#download.file('https://yale.box.com/shared/static/gzu5lhulepp3zsyxptwxoeafpst1ccdv.rda', 'car_transactions.rda')
+load('car_transactions.rda')
+car_transactions %>%
+  filter(new_or_used_bought == "U") %>%
+  group_by(make_bought) %>%
+  summarize(mean_price = mean(price_bought, na.rm = TRUE), 
+            num_cars = n()) 
+```
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 3.2: Summary statistics using more than one group
+
+
+
+We can also group by more than one variable and get summaries for each brand for both new and used cars. 
+
+
+```{r}
+car_transactions %>%
+  group_by(make_bought, new_or_used_bought) %>%
+  summarize(mean_price = mean(price_bought, na.rm = TRUE), 
+            num_cars = n()) %>% 
+  arrange(new_or_used_bought) 
+```
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+#### Part 3.3: Grouping with the mutate() function
+
+
+We can also use the group_by() function with the mutate() function rather than using it with the summarize() function. This will add the statistics values from each group on as an additional row in the data frame. 
+
+
+```{r}
+car_transactions %>%
+  filter(make_bought == "BMW", new_or_used_bought == "U") %>%
+  select(price_bought, mileage_bought, model_bought) %>%     # get rid of variables we don't need
+  group_by(model_bought) %>%
+  mutate(average_model_price = mean(price_bought)) %>%
+  mutate(amount_bought_below_average = price_bought - average_model_price) %>%
+  arrange(amount_bought_below_average) 
+```
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 4: Fitting linear regression models with categorical predictors
+
+
+When I sold my new car, I was interested in also buying a new car. Toward the end of my search, the car models I was consider were the Mazda 3 and the Subaru Impreza. When buying the new car, I also considered that at some point I was going to have to sell the car, so I was interested in looking at how car prices decline as they are driven more miles. 
+
+
+
+
+#### Part 4.1: Getting the relevant data
+
+
+Let's examine this for the Mazda 3, the Subaru Impreza along with the BMW 5 series (one can dream, right?). Let's start by filtering the data to get only these makes.
+
+
+
+```{r}
+three_car_data <- car_transactions %>%
+  filter(model_bought %in% c("MAZDA3", "Impreza", "5 Series"),
+         new_or_used_bought == "U") %>%
+  droplevels()   # remove unused factor levels
+# we can visualize the data too...
+plot(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "BMW"), ylim = c(0, 65000), 
+     ylab = "Price ($)", xlab = "Miles driven")
+points(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "Subaru"), col = "blue")
+points(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "Mazda"), col = "red")
+```
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+#### Part 4.2: Fitting a model with different intercepts for each car type
+
+
+Let's now fit a model for predicting price as a function of miles driven with a separate intercept for each model.
+
+
+```{r}
+(car_intercept_fit <- lm(price_bought ~ mileage_bought + make_bought, data = three_car_data))
+summary(car_intercept_fit)
+(the_coefs <- coef(car_intercept_fit))
+```
+
+
+
+
+
+**Question:** How much less is a Mazda 3 compared to a BMW 5 series?
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+#### Part 4.3: Visualizing the fits
+
+
+We can visualize these models too. All three models have the same slope but different y-intercepts. 
+
+
+
+
+```{r}
+plot(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "BMW"), ylim = c(0, 65000), 
+     ylab = "Price ($)", xlab = "Miles driven")
+points(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "Subaru"), col = "blue")
+points(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "Mazda"), col = "red")
+
+abline(the_coefs[1], the_coefs[2])
+abline(the_coefs[1] + the_coefs[3], the_coefs[2], col = "red")
+abline(the_coefs[1] + the_coefs[4], the_coefs[2], col = "blue")
+```
+
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+#### Part 4.4: Fitting a model with different intercepts and slopes for each car type
+
+
+```{r}
+(car_interaction_fit <- lm(price_bought ~ mileage_bought*make_bought, data = three_car_data))
+# just the interactions
+# (car_interaction_fit <- lm(price_bought ~ mileage_bought:make_bought, data = three_car_data))
+summary(car_interaction_fit)
+(the_coefs <- coef(car_interaction_fit))
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+#### Part 4.5: Visualizing the model with different intercepts and slopes 
+
+
+
+```{r}
+plot(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "BMW"), ylim = c(0, 65000), 
+     ylab = "Price ($)", xlab = "Miles driven")
+points(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "Subaru"), col = "blue")
+points(price_bought ~ mileage_bought, data = filter(three_car_data, make_bought == "Mazda"), col = "red")
+abline(the_coefs[1], the_coefs[2])
+abline(the_coefs[1] + the_coefs[3], the_coefs[2] + the_coefs[5], col = "red")
+abline(the_coefs[1] + the_coefs[4], the_coefs[2] + the_coefs[6], col = "blue")
+```
+
+
+
+
+
+
+
+$\\$

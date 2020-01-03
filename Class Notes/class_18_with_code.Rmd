@@ -1,0 +1,228 @@
+---
+title: "Class 18 notes and code"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+#options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Additional topics in simple linear regression: 
+    * Confidence and prediction intervals, leverage, standarized and studentized residuals, Cook's distance
+ 
+ * Multiple linear regression
+ 
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 1: Additional statistics for evaluating simple linear regression fits
+
+
+Let us use the data from the 2000 Florida election to look at additional metrics for evaluating simple linear regression fits. 
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+#### Part 1.2: Loading the data and fitting the model
+
+
+Let's start by loading the data and fitting a linear regression model predicting the number of 
+
+
+
+```{r }
+
+
+#download.file('https://raw.githubusercontent.com/emeyers/SDS230_F19/master/class_data/florida_vote_data_2000.Rda', 'florida_vote_data_2000.Rda')
+
+
+load('florida_vote_data_2000.Rda')
+
+
+florida_data <- dplyr::arrange(florida_data, Bush)
+
+lm_fit <- lm(Buchanan ~ Bush, data = florida_data)
+
+
+
+
+```
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+#### Part 1.2: Confidence intervals and prediction intervals
+
+
+
+
+```{r}
+
+
+# confidence intervals for the betas
+(CI_betas <- confint(lm_fit))
+
+
+# confidence interval for the regression line mu_y
+CI_regression_line <- predict(lm_fit, interval="confidence", level = 0.95)
+
+
+
+# prediction interval for the regression line
+prediction_interval <- predict(lm_fit, interval="predict")
+
+
+# plot both confidence interval and the prediction interval
+plot(Buchanan ~ Bush, data = florida_data, ylim = c(-1000, 3500))
+
+
+# plot confidence interval
+points(florida_data$Bush, CI_regression_line[, 1], col = "red", type = "l")
+points(florida_data$Bush, CI_regression_line[, 2], col = "green", type = "l")
+points(florida_data$Bush, CI_regression_line[, 3], col = "green", type = "l")
+
+
+# plot prediction interval
+points(florida_data$Bush, prediction_interval[, 2], col = "blue", type = "l")
+points(florida_data$Bush, prediction_interval[, 3], col = "blue", type = "l")
+
+
+
+
+```
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+#### Part 1.3: Leverage and Cook's distance
+
+
+
+
+```{r}
+
+# get the h_i "hat values"
+hat_vals <- hatvalues(lm_fit)
+
+# plot the 20 largest hat values
+names(hat_vals) <- florida_data$county_name
+par(mar = c(4, 8, 4, 4))
+barplot(tail(hat_vals, 20), las=2, xlab = "Leverage", horiz = TRUE)
+
+
+# plot Cook's distances and plot them
+plot(lm_fit, 4)
+
+
+# get the names of the counties for 63 and 67
+florida_data[c(63, 67), 2]
+
+
+# plot residuals as a function of the hat values
+plot(hat_vals, lm_fit$residuals, 
+     xlab = "Leverage", 
+     ylab = "Residuals")
+
+
+# use the base R function to plot the standardized residuals with the hat values 
+#  along with contours that contain constant Cook's distance values
+plot(lm_fit, 5)
+
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+
+
+
+
+

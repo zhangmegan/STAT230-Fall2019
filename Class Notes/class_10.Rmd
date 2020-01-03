@@ -1,0 +1,492 @@
+---
+title: "Class 10 notes and code"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+$\\$
+
+
+
+
+
+```{r setup, include=FALSE}
+
+# install.packages("latex2exp")
+
+library(latex2exp)
+
+
+options(scipen=999)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+
+set.seed(123)
+
+```
+
+
+
+$\\$
+
+
+
+
+## Overview
+
+ * Review permutation tests for two means in R
+ * Permutation tests for more than 2 means
+ * Permutation tests for more than 2 means in R
+ * Review z-scores and correlation
+ * Permutation tests for correlation
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+
+## Part 1: Permutation tests for comparing two sample means in R
+
+
+**Question:** Does eating late at night make you put on more weight compared to whether you ate the same amount of food during the day? 
+
+
+To test this idea researchers, [Fonken et al, 2010](https://www.ncbi.nlm.nih.gov/pubmed/20937863), examined this question in mice. 
+
+Mice were randomly divided into 2 groups:
+
+ * **Dark condition**:  8 mice were given 8 hours of darkness at night when they couldn't eat
+ * **Light condition**: 9 were constantly exposed to light for 24 hours so they could always eat
+
+
+The data from the mice is below. Let's use a permutation test to see if there is any difference between the amount of weight the mice gained between these two conditions. 
+
+
+
+
+
+##### Step 0: Plot the data
+
+
+```{r mice_plot}
+
+# run this once
+# get the mice data
+# source('class_functions.R')
+# download_class_data("mice.Rda")
+
+# load the data
+load("mice.Rda")
+
+
+
+# plot the data as a boxplot
+
+
+
+# plot the data as a strip chart by:
+
+
+# a) creating a list of the data 
+data_list <- list(dark_BM_increase, light_BM_increase)
+
+
+# b) creating a stripchart   
+stripchart(data_list, 
+           group.names = c("Dark (restricted)", "Light (unrestricted"),
+           col = c("red", "blue"))
+
+
+
+
+
+
+
+```
+
+
+
+
+##### Step 1: State the null and alternative hypotheses 
+
+
+$H_0: $
+$H_A: $
+
+
+$\alpha = 0.05$
+
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 2: Calculate the observed statistic
+
+```{r pill_obs_stat}
+
+(obs_stat <- mean(light_BM_increase) - mean(dark_BM_increase))
+
+
+```
+
+
+
+$\\$
+
+
+
+
+
+##### Step 3: Create the null distribution
+
+
+
+```{r null_dist_mice}
+
+
+# combine the data from the dark and light groups together
+combined_data <- c(dark_BM_increase, light_BM_increase)
+
+# use a for loop to create shuffled dark and light groups and shuffled statistics 
+null_distribution <-  NULL
+for (i in 1:10000) {
+
+       # shuffle data
+      shuff_data <- sample(combined_data)
+  
+        # create fake dark and light groups
+        shuff_light <- shuff_data[1:9]
+        shuff_dark <- shuff_data[10:17]
+
+        # save the statistic of interest
+       null_distribution[i] <- mean(shuff_light) - mean(shuff_dark)
+}
+
+
+
+
+
+
+```
+
+
+
+$\\$
+
+
+
+
+
+##### Step 4: Calculate a p-value
+
+
+```{r p_value_mice}
+
+
+# plot the null distribution again with a red line a the value of the observed statistic
+hist(null_distribution)
+abline(v = obs_stat, col = "red")
+
+
+# calculate the p-value
+(pval <- sum(null_distribution >= obs_stat)/length(null_distribution))
+
+
+
+```
+
+
+
+
+$\\$
+
+
+
+
+
+
+##### Step 5: Make a decision
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+[Give a mouse a cookie](https://hamstersworld.weebly.com/uploads/2/0/6/1/2061190/8024088.jpg)
+
+
+[science has gone too far](https://i.imgflip.com/9vr.jpg)
+
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+## Part 2: Permutation tests for more than two sample means
+
+
+A similar test can be run comparing more than 2 means and for seeing if there is a meaningful correlation in the data...
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+## Part 3: Permutation tests for more than two sample means in R 
+
+
+
+A group of Hope College students wanted to see if there was an association between a student's major and the time it takes to complete a small Sudoku-like puzzle
+
+They grouped majors into four categories
+ * Applied science (as)
+ * Natural science (ns)
+ * Social science  (ss)
+ * Arts/humanities (ah)
+
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 0: Plot the data
+
+
+```{r sudoku_plot}
+
+
+# get the data
+sudoku_data <- read.table('http://www.math.hope.edu/isi/data/chap9/MajorPuzzle.txt', header = TRUE)
+
+
+
+# create a boxplot of the data
+boxplot(time ~ major, data = sudoku_data)
+
+
+
+
+```
+
+
+
+
+$\\$
+
+
+
+
+
+##### Step 1: State the null and alternative hypotheses 
+
+
+$H_0: \mu blah$
+$H_A: $ 
+
+
+$\alpha = $
+
+
+
+$\\$
+
+
+
+
+
+
+
+
+##### Step 2: Calculate the observed statistic
+
+
+
+
+```{r sudoku_obs_stat}
+
+
+# we can use the by() function to get the means separately for each group
+# (we will learn of a better way to do this later in the semester)
+group_means <- as.vector(by(sudoku_data$time, sudoku_data$major, mean))
+
+
+# a function to get the MAD statistic
+get_MAD_stat <- function(group_means) {
+  
+  total <- 0
+  num_differences <- 0
+  
+  for (iGroup1 in 1:(length(group_means) - 1)) {
+    
+    for (iGroup2 in (iGroup1 + 1):(length(group_means))){
+      
+      total <- total + abs(group_means[iGroup1] - group_means[iGroup2])
+      num_differences <- num_differences + 1
+      
+    }
+  
+  }
+  
+  total/num_differences
+  
+}  # end of the function 
+
+
+
+# apply this function to our data to get our observed statistic 
+obs_stat <- get_MAD_stat(group_means)
+
+
+  
+
+```
+
+
+
+
+
+
+$\\$
+
+
+
+
+##### Step 3: Create the null distribution
+
+
+```{r sudoku_null_dist}
+
+
+# create the null distribution here using a for loop and the get_MAD_stat() function 
+null_dist <- NULL
+for (i in 1:10000){
+  
+  shuff_major <- sample(sudoku_data$major)
+  shuff_group_means <- as.vector(by(sudoku_data$time, shuff_major, mean))
+  null_dist[i] <- get_MAD_stat(shuff_group_means)
+
+  
+}
+
+
+# plot the null distribution as a histogram
+hist(null_dist)
+abline(v = obs_stat, col = "red")
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+##### Step 4: Calculate a p-value
+
+
+```{r sudoku_p_value}
+
+
+
+# plot the null distribution again with a line at the observed statistic
+
+
+
+# calculate the p-value
+(p_val <- sum(null_dist >= obs_stat)/length(null_dist))
+
+
+```
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+##### Step 5: Make a decision
+
+
+
+
+
+
+
+$\\$
+
+
+
+
+
+
+
+## Part 4: Review z-scores...
+
+
+Let's review z-scores and we'll review correlation and tests of correlation next class...
+
+
+
+
+
+$\\$
